@@ -1,7 +1,7 @@
 build
 
 # formatter
-black==22.10.0
+black==24.3.0
 
 # linter
 pylint==2.13.9
