@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 
 import modular_inference_benchmark.engine.distributions as distributions
