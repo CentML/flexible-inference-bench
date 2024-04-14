@@ -76,5 +76,5 @@ class AdjustedUniformInt(Distribution):
         logging.info(f"Generating adjusted uniform int distribution with low {self.low} and high {self.high}")
         rval = np.empty(len(lengths))
         for i, length in enumerate(lengths):
-            rval[i] = np.random.randint(self.low, self.high - length[i])
+            rval[i] = np.random.randint(self.low, self.high - length)
         return rval
