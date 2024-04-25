@@ -1,171 +1,98 @@
 import abc
-from typing import List
+from typing import List, Tuple
 import logging
 import json
 import random
-
 import transformers
-
-from modular_inference_benchmark.engine import distributions
+from engine import distributions
 
 logger = logging.getLogger(__name__)
 
+PREFIX_OPTIONS = ["no-prefix","prefix-with-text","prefix-with-len"]
 
-def get_data_end(
-    data: List[int], tokenizer: transformers.PreTrainedTokenizer, idx: int, length: int, num_trials: int
-) -> int:
-    assert length >= 0 and idx >= 0
-    if length == 0:
-        return idx
+def get_input_text(text: str, target_token_length: int, tokenizer: transformers.PreTrainedTokenizer):
+    low = 0
+    high = len(text)
 
-    idy = idx + length
-
-    def get_length(x: int, y: int) -> int:
-        return len(tokenizer.encode(tokenizer.decode(data[x:y])))
-
-    for _ in range(num_trials):
-        if get_length(idx, idy) == length:
+    while low <= high:
+        mid = (low + high)//2
+        curr_token_length = len(tokenizer(text[:mid]).input_ids)
+        if curr_token_length == target_token_length:
             break
-        if get_length(idx, idy) < length:
-            idy += 1
+        elif curr_token_length < target_token_length:
+            low = mid + 1
         else:
-            idy -= 1  # Could potentially be stuck in a cycle if the length is not achievable
-            if idy < idx:
-                idy = idx
-                break
-
-    if get_length(idx, idy) != length:
-        logger.warning(f"Tried to achieve length {length} but failed. Achieved length {get_length(idx, idy)} instead")
-
-    return idy
-
+            high = mid - 1
+    
+    return text[:mid]
 
 class Data(abc.ABC):
     @abc.abstractmethod
-    def generate_data(self, size: int) -> List[str]:
+    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         pass
 
 
 class Textfile(Data):
     def __init__(
         self,
-        data: List[int],
-        prefix_str: str,
-        prefill_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int,
-    ) -> None:
-        self.prefix_str = prefix_str
-        self.prefill_distribution = prefill_distribution
-        self.start_distribution = distributions.AdjustedUniformInt(0, len(data) - num_trials)
-        self.tokenizer = tokenizer
-        self.data = data
-        self.num_trials = num_trials
-
-    @classmethod
-    def with_prefix_str(
-        cls,
+        dataset_name: str,
         filename: str,
-        prefix_str: str,
-        prefill_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int = 10,
-    ) -> "Textfile":
-        with open(filename) as f:
-            text = f.read()
-        data = tokenizer.encode(text)
-
-        return cls(data, prefix_str, prefill_distribution, tokenizer, num_trials)
-
-    @classmethod
-    def with_prefix_len(
-        cls,
-        filename: str,
+        prefix_type: str,
+        prefix_text: str,
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int = 10,
-    ) -> "Textfile":
-        with open(filename) as f:
-            text = f.read()
-        data = tokenizer.encode(text)
-
-        if prefix_len + num_trials >= len(data):
-            raise ValueError("Prefix length is too long")
-
-        prefix_end = get_data_end(data, tokenizer, 0, prefix_len, num_trials)  # prefix real length
-
-        prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
-
-        return cls(data[prefix_end:], prefix_str, prefill_distribution, tokenizer, num_trials)
-
-    def generate_data(self, size: int) -> List[str]:
-        # Can save memory by using a generator. However for performance we will use a list
-        input_data = []
-        lengths = self.prefill_distribution.generate_distribution(size)
-        starts = self.start_distribution.generate_distribution(lengths)
-        prefix_len = len(self.tokenizer.encode(self.prefix_str))
-
-        for i in range(size):
-            prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
-            input_data.append(self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]))
-
-        return input_data
-
-
-class Random(Data):
-    def __init__(
-        self,
-        prefix_str: str,
-        prefill_distribution: distributions.Distribution,
-        token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int,
     ) -> None:
-        self.tokenizer = tokenizer
+        self.prefix_type = prefix_type
+        self.prefix_text = prefix_text
+        self.prefix_len = prefix_len
         self.prefill_distribution = prefill_distribution
-        self.token_distribution = token_distribution
-        self.prefix_str = prefix_str
-        self.num_trials = num_trials
+        self.output_token_distribution = output_token_distribution
+        self.tokenizer = tokenizer
 
-    @classmethod
-    def with_prefix_str(
-        cls,
-        prefix_str: str,
-        prefill_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int = 10,
-    ) -> "Random":
-        token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
+        if dataset_name == "other":
+            with open(filename,'r') as f:
+                self.text = f.read()
+            self.prompt_max_tokens = len(tokenizer(self.text).input_ids)
+        else: #random
+            tokenizer_dict = tokenizer.get_vocab()
+            self.text = " ".join(list(tokenizer_dict.keys()))
+            self.prompt_max_tokens = len(tokenizer_dict)
 
-        return cls(prefix_str, prefill_distribution, token_distribution, tokenizer, num_trials)
+    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+        factor = 1.2
+        n_req = int(factor * size)
+        prompt_len_arr = self.prefill_distribution.generate_distribution(n_req)
+        output_token_len_arr = self.output_token_distribution.generate_distribution(n_req)
+        prefix_tokens = 0
+        prefix_text = ""
+        if self.prefix_type == "prefix-with-text":
+            prefix_tokens = len(self.tokenizer(self.prefix_text).input_ids)
+            prefix_text = self.prefix_text
+        elif self.prefix_type == "prefix-with-len":
+            assert self.prefix_len > 0, "Prefix length cannot be negative when selecting prefix-with-len"
+            prefix_tokens = min(self.prefix_len, self.prompt_max_tokens)
+            prefix_text = get_input_text(self.text, prefix_tokens, self.tokenizer)
 
-    @classmethod
-    def with_prefix_len(
-        cls,
-        prefix_len: int,
-        prefill_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
-        num_trials: int = 10,
-    ) -> "Random":
-        token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
-        data = list(token_distribution.generate_distribution(prefix_len + num_trials))
-        prefix_end = get_data_end(data, tokenizer, 0, prefix_len, num_trials)  # prefix real length
-        prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
+        filtered_prompts = []        
+        for i in range(n_req):
+            if prefix_tokens + prompt_len_arr[i] < 4 or output_token_len_arr[i] < 4:
+                continue
 
-        return cls(prefix_str, prefill_distribution, token_distribution, tokenizer, num_trials)
+            # make sure prompt length don't go over max tokens
+            prompt_total_tokens = min(prefix_tokens + prompt_len_arr[i], self.prompt_max_tokens)
+            fill_in_tokens = prompt_total_tokens - prefix_tokens
+            # select a random starting point from the text to generate the remaining tokens
+            start_text_idx = random.randint(0,self.prompt_max_tokens - fill_in_tokens)
+            append_text = get_input_text(self.text[start_text_idx:], fill_in_tokens, self.tokenizer)
+            filtered_prompts.append((prefix_text + append_text, prompt_len_arr[i], output_token_len_arr[i]))
+        
+        if len(filtered_prompts) < size:
+            logger.warning(f"Could not generate the number of requests required.\nSending: {len(filtered_prompts)} requests")
+            return filtered_prompts
 
-    def generate_data(self, size: int) -> List[str]:
-        input_data = []
-        lengths = self.prefill_distribution.generate_distribution(size)
-        prefix_len = len(self.tokenizer.encode(self.prefix_str))
-
-        for i in range(size):
-            data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
-            prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
-            input_data.append(self.prefix_str + self.tokenizer.decode(data[:prompt_end]))
-
-        return input_data
+        return random.sample(filtered_prompts, size)
 
 
 class ShareGPT(Data):
@@ -178,17 +105,25 @@ class ShareGPT(Data):
             dataset = json.load(f)
 
         dataset = [data for data in dataset if len(data["conversations"]) > 2]
+        tokenized_dataset = [(
+                                data["conversations"][0]["value"], 
+                                len(tokenizer(data["conversations"][0]["value"]).input_ids),
+                                len(tokenizer(data["conversations"][1]["value"]).input_ids)
+                            ) for data in dataset]         
 
-        dataset = [
-            (data["conversations"][0]["value"], data["conversations"][1]["value"])
-            for data in dataset
+        filtered_dataset = [
+            (prompt_str, prompt_len, output_len)
+            for  prompt_str, prompt_len, output_len in tokenized_dataset
             if (
-                len(tokenizer.encode(data["conversations"][0]["value"])) > 4
-                and len(tokenizer.encode(data["conversations"][1]["value"])) > 4
+                prompt_len > 4
+                and output_len > 4
             )
         ]
 
-        self.data = dataset
+        self.data = filtered_dataset
 
-    def generate_data(self, size: int) -> List[str]:
+    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+        if len(self.data) < size:
+            logger.warning(f"Could not generate the number of requests required.\nSending: {len(self.data)} requests")
+            return self.data
         return random.sample(self.data, size)
