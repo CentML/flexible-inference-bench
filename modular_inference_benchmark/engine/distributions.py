@@ -28,12 +28,15 @@ class Poisson(Distribution):
             rval[i] = rval[i - 1] + np.random.exponential(scale)
         return rval
 
+
 @dataclass
 class Exponential(Distribution):
-    rate: float 
+    rate: float
+
     def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
         logger.info(f"Generating Exponential distribution of size {size} with rate {self.rate}")
         return np.random.exponential(self.rate, size)
+
 
 @dataclass
 class UniformInt(Distribution):
@@ -85,12 +88,13 @@ class AdjustedUniformInt(Distribution):
             rval[i] = np.random.randint(self.low, self.high - length)
         return rval
 
+
 DISTRIBUTION_CLASSES = {
     "poisson": Poisson,
     "exponential": Exponential,
-    "uniform" : UniformInt,
+    "uniform": UniformInt,
     "normal": NormalInt,
-    "same" : Same,
-    "even" : Even,
-    "adjusted-uniform": AdjustedUniformInt # ASK HOW DOES THIS WORKS AND UNDER WHICH SCENARIO THIS WOULD BE USEFUL
+    "same": Same,
+    "even": Even,
+    "adjusted-uniform": AdjustedUniformInt,  # ASK HOW DOES THIS WORKS AND UNDER WHICH SCENARIO THIS WOULD BE USEFUL
 }

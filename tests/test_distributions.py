@@ -1,6 +1,6 @@
 import numpy as np
 
-import modular_inference_benchmark.engine.distributions as distributions
+import engine.distributions as distributions
 
 
 def test_poisson_len():
