@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def select_distribution(dist_type: str, rate: float, low: int, high: int, mean: float, std: float):
     if dist_type in ["poisson", "exponential", "even", "same"]:
         return DISTRIBUTION_CLASSES[dist_type](rate)
-    elif dist_type in ["uniform", "adjusted-uniform"]:
+    elif dist_type == "uniform":
         return DISTRIBUTION_CLASSES[dist_type](low, high)
     else:
         return DISTRIBUTION_CLASSES[dist_type](mean, std)
