@@ -3,6 +3,7 @@ import logging
 import random
 import sys
 import numpy as np
+from typing import List
 from engine.distributions import DISTRIBUTION_CLASSES
 from utils.utils import configure_logging, get_tokenizer
 from engine.data import ShareGPT, Textfile, PREFIX_OPTIONS
@@ -10,20 +11,15 @@ from engine.data import ShareGPT, Textfile, PREFIX_OPTIONS
 logger = logging.getLogger(__name__)
 
 
-def select_distribution(dist_type: str, rate: float, low: int, high: int, mean: float, std: float):
-    if dist_type in ["poisson", "exponential", "even", "same"]:
-        return DISTRIBUTION_CLASSES[dist_type](rate)
-    elif dist_type == "uniform":
-        return DISTRIBUTION_CLASSES[dist_type](low, high)
-    else:
-        return DISTRIBUTION_CLASSES[dist_type](mean, std)
+def select_distribution(args: List):
+    dist_type = args[0]
+    dist_args = (float(i) for i in args[1:])
+    return DISTRIBUTION_CLASSES[dist_type](*dist_args)
 
 
 def generate_request_times(args: argparse.Namespace):
     size = args.num_of_req
-    dist = select_distribution(
-        args.inc_req_dist, args.rate, args.uniform_low, args.uniform_high, args.normal_mean, args.normal_std
-    )
+    dist = select_distribution(args.request_distribution)
     requests_times = dist.generate_distribution(size)
     return requests_times
 
@@ -43,12 +39,8 @@ def generate_prompts(args: argparse.Namespace):
         logger.info(
             f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions"
         )
-        input_prompt_dist = select_distribution(
-            args.prompt_len_dist, args.rate, args.uniform_low, args.uniform_high, args.normal_mean, args.normal_std
-        )
-        output_token_dist = select_distribution(
-            args.output_len_dist, args.rate, args.uniform_low, args.uniform_high, args.normal_mean, args.normal_std
-        )
+        input_prompt_dist = select_distribution(args.input_token_distribution)
+        output_token_dist = select_distribution(args.output_token_distribution)
 
         prompt_cls = Textfile(
             args.dataset_name,
@@ -92,46 +84,28 @@ def parse_args():
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
-    parser.add_argument(
-        "--best-of", type=int, default=1, help="Generates `best_of` sequences per prompt and " "returns the best one."
-    )
-
-    parser.add_argument("--use-beam-search", action="store_true")
-
-    parser.add_argument(
-        "--output-len-dist",
-        default="normal",
-        choices=list(DISTRIBUTION_CLASSES.keys()),
-        help="Distribution of output sequence length.",
-    )
-
-    parser.add_argument(
-        "--prompt-len-dist",
-        default="uniform",
-        choices=list(DISTRIBUTION_CLASSES.keys()),
-        help="Distribution of propmt length.",
-    )
-
-    parser.add_argument(
-        "--inc-req-dist",
-        default="exponential",
-        choices=list(DISTRIBUTION_CLASSES.keys()),
-        help="distribution of incoming requests.",
-    )
-
-    parser.add_argument(
-        "--rate", type=int, default=5, help="rate for exponential, poisson, same or even distributions."
-    )
-
     parser.add_argument("--num-of-req", type=int, default=200, help="total number of request.")
 
-    parser.add_argument("--normal-mean", type=float, default=1, help="mean for normal distribution.")
+    parser.add_argument(
+        "--request-distribution",
+        nargs="*",
+        default=["exponential", 5],
+        help="request distribution [Distribution_type (inputs to distribution)]",
+    )
 
-    parser.add_argument("--normal-std", type=float, default=0, help="standard deviation for normal distributions.")
+    parser.add_argument(
+        "--input-token-distribution",
+        nargs="*",
+        default=["normal", 10, 5],
+        help="request distribution [Distribution_type (inputs to distribution)]",
+    )
 
-    parser.add_argument("--uniform-low", type=int, default=100, help="low value for uniform distributions.")
-
-    parser.add_argument("--uniform-high", type=int, default=200, help="high value for uniform distributions.")
+    parser.add_argument(
+        "--output-token-distribution",
+        nargs="*",
+        default=["normal", 10, 20],
+        help="request distribution [Distribution_type (inputs to distribution)]",
+    )
 
     parser.add_argument(
         "--prompt-prefix",
@@ -179,8 +153,6 @@ def main():
     random.seed(args.seed)
     requests_times = generate_request_times(args)
     requests_prompts = generate_prompts(args)
-    print(requests_times[:3])
-    print(requests_prompts[:3])
 
 
 if __name__ == '__main__':
