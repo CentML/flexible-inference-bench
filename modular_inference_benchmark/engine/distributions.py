@@ -76,19 +76,6 @@ class Even(Distribution):
         return np.linspace(0, (size - 1) / self.rate, num=size)
 
 
-@dataclass
-class AdjustedUniformInt(Distribution):
-    low: int
-    high: int
-
-    def generate_distribution(self, lengths: npt.NDArray[np.int64]) -> npt.NDArray[np.float64]:
-        logger.info(f"Generating adjusted uniform int distribution with low {self.low} and high {self.high}")
-        rval = np.empty(len(lengths))
-        for i, length in enumerate(lengths):
-            rval[i] = np.random.randint(self.low, self.high - length)
-        return rval
-
-
 DISTRIBUTION_CLASSES = {
     "poisson": Poisson,
     "exponential": Exponential,
@@ -96,5 +83,4 @@ DISTRIBUTION_CLASSES = {
     "normal": NormalInt,
     "same": Same,
     "even": Even,
-    "adjusted-uniform": AdjustedUniformInt,  # ASK HOW DOES THIS WORKS AND UNDER WHICH SCENARIO THIS WOULD BE USEFUL
 }
