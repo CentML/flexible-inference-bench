@@ -45,7 +45,7 @@ class UniformInt(Distribution):
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.int64]:
         logger.info(f"Generating uniform int distribution of size {size} with low {self.low} and high {self.high}")
-        return np.random.randint(self.low, self.high, size)  # high is exclusive
+        return np.random.randint(self.low, self.high, size).astype(int)  # high is exclusive
 
 
 @dataclass
@@ -74,6 +74,19 @@ class Even(Distribution):
     def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
         logger.info(f"Generating even distribution of size {size} with rate {self.rate}")
         return np.linspace(0, (size - 1) / self.rate, num=size)
+
+
+@dataclass
+class AdjustedUniformInt(Distribution):
+    low: int
+    high: int
+
+    def generate_distribution(self, lengths: npt.NDArray[np.int64]) -> npt.NDArray[np.float64]:
+        logging.info(f"Generating adjusted uniform int distribution with low {self.low} and high {self.high}")
+        rval = np.empty(len(lengths), dtype=np.int64)
+        for i, length in enumerate(lengths):
+            rval[i] = np.random.randint(self.low, self.high - length)
+        return rval
 
 
 DISTRIBUTION_CLASSES = {

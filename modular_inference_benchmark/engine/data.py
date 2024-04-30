@@ -11,97 +11,201 @@ logger = logging.getLogger(__name__)
 PREFIX_OPTIONS = ["no-prefix", "prefix-with-text", "prefix-with-len"]
 
 
-def get_input_text(text: str, target_token_length: int, tokenizer: transformers.PreTrainedTokenizer):
-    """Determine the text length according to the target token length"""
-    low = 0
-    high = len(text)
+def get_data_end(
+    data: List[int], tokenizer: transformers.PreTrainedTokenizer, idx: int, length: int, num_trials: int
+) -> int:
+    assert length >= 0 and idx >= 0
+    if length == 0:
+        return idx
 
-    while low <= high:
-        mid = (low + high) // 2
-        curr_token_length = len(tokenizer(text[:mid]).input_ids)
-        if curr_token_length == target_token_length:
-            return text[:mid]
-        elif curr_token_length < target_token_length:
-            low = mid + 1
+    idy = idx + length
+
+    def get_length(x: int, y: int) -> int:
+        return len(tokenizer.encode(tokenizer.decode(data[x:y])))
+
+    for _ in range(num_trials):
+        if get_length(idx, idy) == length:
+            break
+        if get_length(idx, idy) < length:
+            idy += 1
         else:
-            high = mid - 1
+            idy -= 1  # Could potentially be stuck in a cycle if the length is not achievable
+            if idy < idx:
+                idy = idx
+                break
 
-    return ""
+    if get_length(idx, idy) != length:
+        logger.warning(f"Tried to achieve length {length} but failed. Achieved length {get_length(idx, idy)} instead")
+
+    return idy
 
 
 class Data(abc.ABC):
     @abc.abstractmethod
-    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+    def generate_data(self, size: int) -> List[str]:
         pass
 
 
 class Textfile(Data):
     def __init__(
         self,
-        dataset_name: str,
+        data: List[int],
+        prefix_str: str,
+        prefill_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
+        tokenizer: transformers.PreTrainedTokenizer,
+        num_trials: int,
+    ) -> None:
+        self.prefix_str = prefix_str
+        self.prefill_distribution = prefill_distribution
+        self.output_token_distribution = output_token_distribution
+        self.start_distribution = distributions.AdjustedUniformInt(0, len(data) - num_trials)
+        self.tokenizer = tokenizer
+        self.data = data
+        self.num_trials = num_trials
+
+    @classmethod
+    def with_prefix_str(
+        cls,
         filename: str,
-        prefix_type: str,
-        prefix_text: str,
+        prefix_str: str,
+        prefill_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
+        tokenizer: transformers.PreTrainedTokenizer,
+        num_trials: int = 10,
+    ) -> "Textfile":
+        with open(filename) as f:
+            text = f.read()
+        data = tokenizer.encode(text)
+
+        return cls(data, prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials)
+
+    @classmethod
+    def with_prefix_len(
+        cls,
+        filename: str,
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
-    ) -> None:
-        self.prefix_type = prefix_type
-        self.prefix_text = prefix_text
-        self.prefix_len = prefix_len
-        self.prefill_distribution = prefill_distribution
-        self.output_token_distribution = output_token_distribution
-        self.tokenizer = tokenizer
+        num_trials: int = 10,
+    ) -> "Textfile":
+        with open(filename) as f:
+            text = f.read()
+        data = tokenizer.encode(text)
 
-        if dataset_name == "other":
-            with open(filename, 'r') as f:
-                self.text = f.read()
-            self.prompt_max_tokens = len(tokenizer(self.text).input_ids)
-        else:  # random
-            tokenizer_dict = tokenizer.get_vocab()
-            self.text = " ".join(list(tokenizer_dict.keys()))
-            self.prompt_max_tokens = len(tokenizer_dict)
+        if prefix_len + num_trials >= len(data):
+            raise ValueError("Prefix length is too long")
+
+        prefix_end = get_data_end(data, tokenizer, 0, prefix_len, num_trials)  # prefix real length
+
+        prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
+
+        return cls(
+            data[prefix_end:], prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials
+        )
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
-        factor = 1.2
-        n_req = int(factor * size)
-        prompt_token_len_arr = self.prefill_distribution.generate_distribution(n_req)
-        output_token_len_arr = self.output_token_distribution.generate_distribution(n_req)
-        prefix_tokens = 0
-        prefix_text = ""
-        if self.prefix_type == "prefix-with-text":
-            prefix_tokens = len(self.tokenizer(self.prefix_text).input_ids)
-            prefix_text = self.prefix_text
-        elif self.prefix_type == "prefix-with-len":
-            assert self.prefix_len > 0, "Prefix length cannot be negative when selecting prefix-with-len"
-            prefix_tokens = min(self.prefix_len, self.prompt_max_tokens)
-            prefix_text = get_input_text(self.text, prefix_tokens, self.tokenizer)
+        # Can save memory by using a generator. However for performance we will use a list
+        input_data = []
+        lengths = self.prefill_distribution.generate_distribution(size)
+        output_tokens = self.output_token_distribution.generate_distribution(size)
+        starts = self.start_distribution.generate_distribution(lengths)
+        prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
-        filtered_prompts = []
-        for i in range(n_req):
-            # filtering small input and output tokens
-            if prefix_tokens + prompt_token_len_arr[i] < 4 or output_token_len_arr[i] < 4:
+        for i in range(size):
+            if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
+                continue
+            prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
+            if prompt_end < 4 or output_tokens[i] < 4:
                 continue
 
-            # make sure prompt length don't go over max tokens
-            prompt_total_tokens = min(prefix_tokens + prompt_token_len_arr[i], self.prompt_max_tokens)
-            fill_in_tokens = prompt_total_tokens - prefix_tokens
-            # translating fill_in_tokens to text length
-            fill_in_text_len = len(get_input_text(self.text, fill_in_tokens, self.tokenizer))
-            # select a random starting point from the text to generate the remaining tokens, making sure the starting point contains the necessary lenght of text
-            limit_random_start_point = len(self.text) - fill_in_text_len
-            start_text_idx = random.randint(0, len(self.text[:limit_random_start_point]))
-            append_text = get_input_text(self.text[start_text_idx:], fill_in_tokens, self.tokenizer)
-            filtered_prompts.append((prefix_text + append_text, prompt_token_len_arr[i], output_token_len_arr[i]))
-
-        if len(filtered_prompts) < size:
-            logger.warning(
-                f"Could not generate the number of requests required.\nSending: {len(filtered_prompts)} requests"
+            input_data.append(
+                (
+                    self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
+                    prompt_end,
+                    output_tokens[i],
+                )
             )
-            return filtered_prompts
 
-        return random.sample(filtered_prompts, size)
+        if len(input_data) < size:
+            logger.warning(f"Could not generate the number of requests required.\nSending: {len(input_data)} requests")
+            return input_data
+        return random.sample(input_data, size)
+
+
+class Random(Data):
+    def __init__(
+        self,
+        prefix_str: str,
+        prefill_distribution: distributions.Distribution,
+        token_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
+        tokenizer: transformers.PreTrainedTokenizer,
+        num_trials: int,
+    ) -> None:
+        self.tokenizer = tokenizer
+        self.prefill_distribution = prefill_distribution
+        self.token_distribution = token_distribution
+        self.output_token_distribution = output_token_distribution
+        self.prefix_str = prefix_str
+        self.num_trials = num_trials
+
+    @classmethod
+    def with_prefix_str(
+        cls,
+        prefix_str: str,
+        prefill_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
+        tokenizer: transformers.PreTrainedTokenizer,
+        num_trials: int = 10,
+    ) -> "Random":
+        token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
+
+        return cls(
+            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+        )
+
+    @classmethod
+    def with_prefix_len(
+        cls,
+        prefix_len: int,
+        prefill_distribution: distributions.Distribution,
+        output_token_distribution: distributions.Distribution,
+        tokenizer: transformers.PreTrainedTokenizer,
+        num_trials: int = 10,
+    ) -> "Random":
+        token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
+        data = list(token_distribution.generate_distribution(prefix_len + num_trials))
+        prefix_end = get_data_end(data, tokenizer, 0, prefix_len, num_trials)  # prefix real length
+        prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
+
+        return cls(
+            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+        )
+
+    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+        input_data = []
+        lengths = self.prefill_distribution.generate_distribution(size)
+        output_tokens = self.output_token_distribution.generate_distribution(size)
+        prefix_len = len(self.tokenizer.encode(self.prefix_str))
+
+        for i in range(size):
+            data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
+            if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
+                continue
+            prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
+            if prompt_end < 4 or output_tokens[i] < 4:
+                continue
+
+            input_data.append(
+                (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), prompt_end, output_tokens[i])
+            )
+
+        if len(input_data) < size:
+            logger.warning(f"Could not generate the number of requests required.\nSending: {len(input_data)} requests")
+            return input_data
+        return random.sample(input_data, size)
 
 
 class ShareGPT(Data):

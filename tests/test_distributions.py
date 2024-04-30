@@ -36,6 +36,12 @@ def test_even_len():
     generated = even.generate_distribution(10)
     assert len(generated) == 10
 
+def test_adjusted_uniform_int_len():
+    adjusted_uniform_int = distributions.AdjustedUniformInt(100, 200)
+    lengths = list(range(10, 20))
+    generated = adjusted_uniform_int.generate_distribution(lengths)
+    assert len(generated) == len(lengths)
+
 
 def test_poisson_values():
     poisson = distributions.Poisson(1.0)
@@ -69,3 +75,9 @@ def test_even_values():
     even = distributions.Even(1.0)
     generated = even.generate_distribution(10)
     assert np.all(generated >= 0) and np.all(generated <= 9)
+
+def test_adjusted_uniform_int_values():
+    adjusted_uniform_int = distributions.AdjustedUniformInt(100,200)
+    lengths = list(range(10,20))
+    generated = adjusted_uniform_int.generate_distribution(lengths)
+    assert np.all(generated >= 100) and np.all(generated <= 200)

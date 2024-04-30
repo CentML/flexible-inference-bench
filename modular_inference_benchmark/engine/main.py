@@ -2,11 +2,12 @@ import argparse
 import logging
 import random
 import sys
-import numpy as np
 from typing import List
+import numpy as np
 from engine.distributions import DISTRIBUTION_CLASSES
-from utils.utils import configure_logging, get_tokenizer
-from engine.data import ShareGPT, Textfile, PREFIX_OPTIONS
+from utils.utils import configure_logging
+from engine.data import ShareGPT, Textfile, Random, PREFIX_OPTIONS
+from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def generate_request_times(args: argparse.Namespace):
 def generate_prompts(args: argparse.Namespace):
     model_id = args.model
     tokenizer_id = args.tokenizer if args.tokenizer else model_id
-    tokenizer = get_tokenizer(tokenizer_id, trust_remote_code=args.trust_remote_code)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     filename = args.dataset_path
     prompt_cls = None
     if args.dataset_name == 'sharegpt':
@@ -42,22 +43,30 @@ def generate_prompts(args: argparse.Namespace):
         input_prompt_dist = select_distribution(args.input_token_distribution)
         output_token_dist = select_distribution(args.output_token_distribution)
 
-        prompt_cls = Textfile(
-            args.dataset_name,
-            args.dataset_path,
-            args.prompt_prefix,
-            args.prefix_text,
-            args.prefix_len,
-            input_prompt_dist,
-            output_token_dist,
-            tokenizer,
-        )
+        if args.prompt_prefix in ("no-prefix", "prefix-with-len"):
+            prefix_len = args.prefix_len if args.prompt_prefix == "prefix-with-len" else 0
+            prompt_cls = (
+                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                if args.dataset_name == "random"
+                else Textfile.with_prefix_len(filename, prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+            )
+        else:
+            prompt_cls = (
+                Random.with_prefix_str(args.prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                if args.dataset_name == "random"
+                else Textfile.with_prefix_str(
+                    filename, args.prefix_text, input_prompt_dist, output_token_dist, tokenizer
+                )
+            )
 
     if not prompt_cls:
         logger.error("Error generating prompts, exiting benchmark .....")
         sys.exit(1)
 
-    return prompt_cls.generate_data(args.num_of_req)
+    factor = 1.2
+    size = int(args.num_of_req * factor)
+
+    return prompt_cls.generate_data(size)
 
 
 def parse_args():
@@ -96,14 +105,14 @@ def parse_args():
     parser.add_argument(
         "--input-token-distribution",
         nargs="*",
-        default=["normal", 10, 5],
+        default=["normal", 100, 5],
         help="request distribution [Distribution_type (inputs to distribution)]",
     )
 
     parser.add_argument(
         "--output-token-distribution",
         nargs="*",
-        default=["normal", 10, 20],
+        default=["normal", 100, 20],
         help="request distribution [Distribution_type (inputs to distribution)]",
     )
 

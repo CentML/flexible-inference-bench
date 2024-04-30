@@ -26,4 +26,4 @@ classifiers = [
 package-dir = {"" = "modular_inference_benchmark"}
 
 [project.scripts]
-cserve-benchmark = "engine.main:main"
+inference-benchmark = "engine.main:main"
