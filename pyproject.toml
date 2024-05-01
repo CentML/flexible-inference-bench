@@ -12,6 +12,7 @@ dependencies = [
     "numpy",
     "tqdm",
     "transformers",
+    "sentencepiece",
 ]
 
 classifiers = [
@@ -20,3 +21,9 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "modular_inference_benchmark"}
+
+[project.scripts]
+inference-benchmark = "engine.main:main"

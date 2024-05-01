@@ -21,7 +21,7 @@ class Poisson(Distribution):
     rate: float
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
-        logging.info(f"Generating Poisson distribution of size {size} with rate {self.rate}")
+        logger.info(f"Generating Poisson distribution of size {size} with rate {self.rate}")
         rval = np.zeros(size)
         scale = 1 / self.rate
         for i in range(1, size):
@@ -30,13 +30,22 @@ class Poisson(Distribution):
 
 
 @dataclass
+class Exponential(Distribution):
+    rate: float
+
+    def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
+        logger.info(f"Generating Exponential distribution of size {size} with rate {self.rate}")
+        return np.random.exponential(self.rate, size)
+
+
+@dataclass
 class UniformInt(Distribution):
     low: int
     high: int
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.int64]:
-        logging.info(f"Generating uniform int distribution of size {size} with low {self.low} and high {self.high}")
-        return np.random.randint(self.low, self.high, size)  # high is exclusive
+        logger.info(f"Generating uniform int distribution of size {size} with low {self.low} and high {self.high}")
+        return np.random.randint(self.low, self.high, size).astype(int)  # high is exclusive
 
 
 @dataclass
@@ -45,7 +54,7 @@ class NormalInt(Distribution):
     std: float
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.int64]:
-        logging.info(f"Generating normal int distribution of size {size} with mean {self.mean} and std {self.std}")
+        logger.info(f"Generating normal int distribution of size {size} with mean {self.mean} and std {self.std}")
         return np.random.normal(self.mean, self.std, size).astype(int)
 
 
@@ -54,7 +63,7 @@ class Same(Distribution):
     start: float
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
-        logging.info(f"Generating same distribution of size {size} with start {self.start}")
+        logger.info(f"Generating same distribution of size {size} with start {self.start}")
         return np.ones(size) * self.start
 
 
@@ -63,7 +72,7 @@ class Even(Distribution):
     rate: float
 
     def generate_distribution(self, size: int) -> npt.NDArray[np.float64]:
-        logging.info(f"Generating even distribution of size {size} with rate {self.rate}")
+        logger.info(f"Generating even distribution of size {size} with rate {self.rate}")
         return np.linspace(0, (size - 1) / self.rate, num=size)
 
 
@@ -74,7 +83,17 @@ class AdjustedUniformInt(Distribution):
 
     def generate_distribution(self, lengths: npt.NDArray[np.int64]) -> npt.NDArray[np.float64]:
         logging.info(f"Generating adjusted uniform int distribution with low {self.low} and high {self.high}")
-        rval = np.empty(len(lengths))
+        rval = np.empty(len(lengths), dtype=np.int64)
         for i, length in enumerate(lengths):
             rval[i] = np.random.randint(self.low, self.high - length)
         return rval
+
+
+DISTRIBUTION_CLASSES = {
+    "poisson": Poisson,
+    "exponential": Exponential,
+    "uniform": UniformInt,
+    "normal": NormalInt,
+    "same": Same,
+    "even": Even,
+}
