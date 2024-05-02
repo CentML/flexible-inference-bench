@@ -13,6 +13,7 @@ dependencies = [
     "tqdm",
     "transformers",
     "sentencepiece",
+    "aiohttp",
 ]
 
 classifiers = [
