@@ -1,4 +1,6 @@
 import argparse
+import json
+import dataclasses
 import logging
 import random
 import asyncio
@@ -157,6 +159,8 @@ def parse_args():
 
     parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
+    parser.add_argument("--output-file", type=str, default=None, help="Output json file to save the results.")
+
     args = parser.parse_args()
     return args
 
@@ -177,7 +181,15 @@ def main():
         args.api_url = f"{args.base_url}/{args.endpoint}"
 
     client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
-    print(asyncio.run(client.benchmark(requests_prompts, requests_times)))
+    output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
+
+    if args.output_file:
+        with open(args.output_file, "w") as f:
+            f.write(
+                json.dumps([dataclasses.asdict(request_func_output) for request_func_output in output_list], indent=4)
+            )
+    else:
+        print(output_list)
 
 
 if __name__ == '__main__':
