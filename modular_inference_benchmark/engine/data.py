@@ -42,7 +42,7 @@ def get_data_end(
 
 class Data(abc.ABC):
     @abc.abstractmethod
-    def generate_data(self, size: int) -> List[str]:
+    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         pass
 
 

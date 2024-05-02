@@ -1,12 +1,17 @@
 import argparse
+import json
+import dataclasses
 import logging
 import random
+import asyncio
 import sys
 from typing import List
 import numpy as np
 from engine.distributions import DISTRIBUTION_CLASSES
 from utils.utils import configure_logging
 from engine.data import ShareGPT, Textfile, Random, PREFIX_OPTIONS
+from engine.client import Client
+from engine.backend_functions import ASYNC_REQUEST_FUNCS
 from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
@@ -66,7 +71,12 @@ def generate_prompts(args: argparse.Namespace):
     factor = 1.2
     size = int(args.num_of_req * factor)
 
-    return prompt_cls.generate_data(size)
+    data = prompt_cls.generate_data(size)
+    if len(data) < args.num_of_req:
+        logger.warning("The number of requests is less than the size.")
+    else:
+        data = data[: args.num_of_req]
+    return data
 
 
 def parse_args():
@@ -79,7 +89,7 @@ def parse_args():
         "--backend",
         type=str,
         default='cserve',
-        # choices=list(ASYNC_REQUEST_FUNCS.keys()),
+        choices=list(ASYNC_REQUEST_FUNCS.keys()),
         help="Backend inference engine.",
     )
 
@@ -98,21 +108,21 @@ def parse_args():
     parser.add_argument(
         "--request-distribution",
         nargs="*",
-        default=["exponential", 5],
+        default=["exponential", 1],
         help="request distribution [Distribution_type (inputs to distribution)]",
     )
 
     parser.add_argument(
         "--input-token-distribution",
         nargs="*",
-        default=["normal", 100, 5],
+        default=["uniform", 0, 255],
         help="request distribution [Distribution_type (inputs to distribution)]",
     )
 
     parser.add_argument(
         "--output-token-distribution",
         nargs="*",
-        default=["normal", 100, 20],
+        default=["uniform", 0, 255],
         help="request distribution [Distribution_type (inputs to distribution)]",
     )
 
@@ -150,6 +160,12 @@ def parse_args():
 
     parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
+    parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
+
+    parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
+
+    parser.add_argument("--output-file", type=str, default=None, help="Output json file to save the results.")
+
     args = parser.parse_args()
     return args
 
@@ -160,8 +176,25 @@ def main():
     print(args)
     np.random.seed(args.seed)
     random.seed(args.seed)
-    requests_times = generate_request_times(args)
     requests_prompts = generate_prompts(args)
+    requests_times = generate_request_times(args)[:len(requests_prompts)]
+
+    if args.base_url is None:
+        assert args.host and args.port, "Host and port must be provided if base url is not provided."
+        args.api_url = f"http://{args.host}:{args.port}{args.endpoint}"
+    else:
+        args.api_url = f"{args.base_url}/{args.endpoint}"
+
+    client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
+    output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
+
+    if args.output_file:
+        with open(args.output_file, "w") as f:
+            f.write(
+                json.dumps([dataclasses.asdict(request_func_output) for request_func_output in output_list], indent=4)
+            )
+    else:
+        print(output_list)
 
 
 if __name__ == '__main__':
