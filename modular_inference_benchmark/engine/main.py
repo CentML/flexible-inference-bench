@@ -71,7 +71,12 @@ def generate_prompts(args: argparse.Namespace):
     factor = 1.2
     size = int(args.num_of_req * factor)
 
-    return prompt_cls.generate_data(size)
+    data = prompt_cls.generate_data(size)
+    if len(data) < args.num_of_req:
+        logger.warning("The number of requests is less than the size.")
+    else:
+        data = data[: args.num_of_req]
+    return data
 
 
 def parse_args():
