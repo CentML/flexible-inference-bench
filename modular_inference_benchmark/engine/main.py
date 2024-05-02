@@ -171,8 +171,8 @@ def main():
     print(args)
     np.random.seed(args.seed)
     random.seed(args.seed)
-    requests_times = generate_request_times(args)
     requests_prompts = generate_prompts(args)
+    requests_times = generate_request_times(args)[:len(requests_prompts)]
 
     if args.base_url is None:
         assert args.host and args.port, "Host and port must be provided if base url is not provided."
