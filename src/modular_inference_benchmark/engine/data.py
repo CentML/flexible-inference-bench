@@ -4,7 +4,7 @@ import logging
 import json
 import random
 import transformers
-from engine import distributions
+from modular_inference_benchmark.engine import distributions
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def get_data_end(
                 break
 
     if get_length(idx, idy) != length:
-        logger.warning(f"Tried to achieve length {length} but failed. Achieved length {get_length(idx, idy)} instead")
+        logger.debug(f"Tried to achieve length {length} but failed. Achieved length {get_length(idx, idy)} instead")
 
     return idy
 

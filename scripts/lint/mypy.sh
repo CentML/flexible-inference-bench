@@ -7,5 +7,5 @@ cd $SCRIPT_DIR
 python -m mypy \
      --install-types --non-interactive \
      --config-file ./mypy.ini \
-     ../../modular_inference_benchmark
+     ../../src/modular_inference_benchmark
 
