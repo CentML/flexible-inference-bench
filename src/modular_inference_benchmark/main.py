@@ -5,32 +5,32 @@ import logging
 import random
 import asyncio
 import sys
-from typing import List
+from typing import List, Any, Tuple
 import numpy as np
-from engine.distributions import DISTRIBUTION_CLASSES
-from utils.utils import configure_logging
-from engine.data import ShareGPT, Textfile, Random, PREFIX_OPTIONS
-from engine.client import Client
-from engine.backend_functions import ASYNC_REQUEST_FUNCS
 from transformers import AutoTokenizer
+from modular_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
+from modular_inference_benchmark.utils.utils import configure_logging
+from modular_inference_benchmark.engine.data import ShareGPT, Textfile, Random, PREFIX_OPTIONS
+from modular_inference_benchmark.engine.client import Client
+from modular_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
 
 logger = logging.getLogger(__name__)
 
 
-def select_distribution(args: List):
+def select_distribution(args: List[Any]) -> Distribution:
     dist_type = args[0]
     dist_args = (float(i) for i in args[1:])
-    return DISTRIBUTION_CLASSES[dist_type](*dist_args)
+    return DISTRIBUTION_CLASSES[dist_type](*dist_args)  # type: ignore
 
 
-def generate_request_times(args: argparse.Namespace):
+def generate_request_times(args: argparse.Namespace) -> List[Any]:
     size = args.num_of_req
     dist = select_distribution(args.request_distribution)
     requests_times = dist.generate_distribution(size)
     return requests_times
 
 
-def generate_prompts(args: argparse.Namespace):
+def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
     model_id = args.model
     tokenizer_id = args.tokenizer if args.tokenizer else model_id
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
@@ -38,7 +38,8 @@ def generate_prompts(args: argparse.Namespace):
     prompt_cls = None
     if args.dataset_name == 'sharegpt':
         logger.info(
-            "User selected sharegpt dataset.\nIgnoring prompt and output length distribution and following the shapes from the dataset.\n"
+            "User selected sharegpt dataset.\n \
+            Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
         )
         prompt_cls = ShareGPT(filename, tokenizer)
     else:
@@ -51,13 +52,15 @@ def generate_prompts(args: argparse.Namespace):
         if args.prompt_prefix in ("no-prefix", "prefix-with-len"):
             prefix_len = args.prefix_len if args.prompt_prefix == "prefix-with-len" else 0
             prompt_cls = (
-                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)  # type: ignore
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_len(filename, prefix_len, input_prompt_dist, output_token_dist, tokenizer)
             )
         else:
             prompt_cls = (
-                Random.with_prefix_str(args.prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_str(
+                    args.prefix_text, input_prompt_dist, output_token_dist, tokenizer  # type: ignore
+                )
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_str(
                     filename, args.prefix_text, input_prompt_dist, output_token_dist, tokenizer
@@ -79,7 +82,7 @@ def generate_prompts(args: argparse.Namespace):
     return data
 
 
-def parse_args():
+def parse_args() -> Any:  # type: ignore
 
     parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
 
@@ -166,18 +169,20 @@ def parse_args():
 
     parser.add_argument("--output-file", type=str, default=None, help="Output json file to save the results.")
 
+    parser.add_argument("--debug", action="store_true", help="Log debug messages")
+
     args = parser.parse_args()
     return args
 
 
-def main():
-    configure_logging()
+def main() -> None:
     args = parse_args()
+    configure_logging(args)
     print(args)
     np.random.seed(args.seed)
     random.seed(args.seed)
     requests_prompts = generate_prompts(args)
-    requests_times = generate_request_times(args)[:len(requests_prompts)]
+    requests_times = generate_request_times(args)[: len(requests_prompts)]
 
     if args.base_url is None:
         assert args.host and args.port, "Host and port must be provided if base url is not provided."
@@ -188,13 +193,14 @@ def main():
     client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
 
+    # pylint: disable=line-too-long
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(
-                json.dumps([dataclasses.asdict(request_func_output) for request_func_output in output_list], indent=4)
+                json.dumps([dataclasses.asdict(request_func_output) for request_func_output in output_list], indent=4)  # type: ignore
             )
     else:
-        print(output_list)
+        logger.debug(f"{output_list}")
 
 
 if __name__ == '__main__':

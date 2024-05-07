@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "modular_inference_benchmark"}
+package-dir = {"" = "src"}
 
 [project.scripts]
-inference-benchmark = "engine.main:main"
+inference-benchmark = "modular_inference_benchmark.main:main"

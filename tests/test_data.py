@@ -3,8 +3,8 @@ import os
 import numpy as np
 from transformers import AutoTokenizer
 import json
-import engine.data as data
-import engine.distributions as distributions
+import modular_inference_benchmark.engine.data as data
+import modular_inference_benchmark.engine.distributions as distributions
 from sharegpt_data import SHAREGPT_DATA
 
 def test_random_with_prefix_str():
