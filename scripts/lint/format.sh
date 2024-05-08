@@ -13,4 +13,4 @@ python -m black \
     --exclude=".*pb2.*" \
     --line-length 120 \
     $additional_opts \
-    ../../modular_inference_benchmark
+    ../../src/modular_inference_benchmark

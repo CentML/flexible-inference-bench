@@ -81,7 +81,7 @@ async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional
                     output.latency = most_recent_timestamp - st
                     output.success = True
                     output.generated_text = data["generated_text"]
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
             output.error = "".join(traceback.format_exception(*exc_info))
@@ -142,7 +142,7 @@ async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Opti
                 else:
                     output.error = response.reason or ""
                     output.success = False
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
             output.error = "".join(traceback.format_exception(*exc_info))
@@ -184,7 +184,7 @@ async def async_request_deepspeed_mii(
                 else:
                     output.error = response.reason or ""
                     output.success = False
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
             output.error = "".join(traceback.format_exception(*exc_info))
@@ -253,7 +253,7 @@ async def async_request_openai_completions(
                     output.generated_text = generated_text
                     output.success = True
                     output.latency = latency
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
             output.error = "".join(traceback.format_exception(*exc_info))
@@ -325,7 +325,7 @@ async def async_request_openai_chat_completions(
                 else:
                     output.error = response.reason or ""
                     output.success = False
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
             output.error = "".join(traceback.format_exception(*exc_info))
