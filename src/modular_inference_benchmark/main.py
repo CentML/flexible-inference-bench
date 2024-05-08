@@ -5,7 +5,7 @@ import logging
 import random
 import asyncio
 import sys
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Union
 import numpy as np
 from transformers import AutoTokenizer
 from modular_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
@@ -17,13 +17,13 @@ from modular_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_F
 logger = logging.getLogger(__name__)
 
 
-def select_distribution(args: List[Any]) -> Distribution:
+def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
     dist_type = args[0]
     dist_args = (float(i) for i in args[1:])
-    return DISTRIBUTION_CLASSES[dist_type](*dist_args)  # type: ignore
+    return DISTRIBUTION_CLASSES[dist_type](*dist_args)
 
 
-def generate_request_times(args: argparse.Namespace) -> List[Any]:
+def generate_request_times(args: argparse.Namespace) -> List[int | float]:
     size = args.num_of_req
     dist = select_distribution(args.request_distribution)
     requests_times = dist.generate_distribution(size)
@@ -35,7 +35,7 @@ def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
     tokenizer_id = args.tokenizer if args.tokenizer else model_id
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     filename = args.dataset_path
-    prompt_cls = None
+    prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name == 'sharegpt':
         logger.info(
             "User selected sharegpt dataset.\n \
@@ -52,15 +52,13 @@ def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
         if args.prompt_prefix in ("no-prefix", "prefix-with-len"):
             prefix_len = args.prefix_len if args.prompt_prefix == "prefix-with-len" else 0
             prompt_cls = (
-                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)  # type: ignore
+                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_len(filename, prefix_len, input_prompt_dist, output_token_dist, tokenizer)
             )
         else:
             prompt_cls = (
-                Random.with_prefix_str(
-                    args.prefix_text, input_prompt_dist, output_token_dist, tokenizer  # type: ignore
-                )
+                Random.with_prefix_str(args.prefix_text, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_str(
                     filename, args.prefix_text, input_prompt_dist, output_token_dist, tokenizer
@@ -82,7 +80,7 @@ def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
     return data
 
 
-def parse_args() -> Any:  # type: ignore
+def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
 
@@ -192,7 +190,6 @@ def main() -> None:
 
     client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
-
     # pylint: disable=line-too-long
     if args.output_file:
         with open(args.output_file, "w") as f:

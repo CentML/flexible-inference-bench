@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Tuple, Callable, Iterable, Optional
+from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union
 from tqdm import tqdm
 from modular_inference_benchmark.engine.backend_functions import (
     ASYNC_REQUEST_FUNCS,
@@ -23,18 +23,20 @@ class Client:
         self.disable_tqdm = disable_tqdm
 
     @property
-    def request_func(self) -> Callable:  # type: ignore
+    def request_func(self) -> Callable[[RequestFuncInput, Any | None], Coroutine[Any, Any, RequestFuncOutput]]:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
-    async def send_request(self, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]) -> RequestFuncOutput:
+    async def send_request(
+        self, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
+    ) -> Optional[RequestFuncOutput | Any]:
         logger.debug(f"Sending request with data {data} and wait time {wait_time}")
         await asyncio.sleep(wait_time)
-        return await self.request_func(data, pbar)  # type: ignore
+        return await self.request_func(data, pbar)
 
     async def benchmark(
-        self, data: List[Tuple[str, int, int]], request_times: Iterable  # type: ignore
-    ) -> RequestFuncOutput:
-        assert len(data) == len(request_times), "Data and request times must have the same length"  # type: ignore
+        self, data: List[Tuple[str, int, int]], request_times: List[float | int]
+    ) -> list[Union[RequestFuncOutput, Any, None]]:
+        assert len(data) == len(request_times), "Data and request times must have the same length"
         pbar = None if self.disable_tqdm else tqdm(total=len(data))
 
         request_func_inputs = [
@@ -50,7 +52,7 @@ class Client:
             for data_sample in data
         ]
 
-        return await asyncio.gather(  # type: ignore
+        return await asyncio.gather(
             *[
                 self.send_request(data, request_time, pbar)
                 for data, request_time in zip(request_func_inputs, request_times)

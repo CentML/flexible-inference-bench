@@ -25,7 +25,7 @@ class Poisson(Distribution):
         scale = 1 / self.rate
         for i in range(1, size):
             rval[i] = rval[i - 1] + np.random.exponential(scale)
-        return rval.tolist()  # type: ignore
+        return list(rval)
 
 
 @dataclass
@@ -34,7 +34,7 @@ class Exponential(Distribution):
 
     def generate_distribution(self, size: int) -> List[float]:
         logger.debug(f"Generating Exponential distribution of size {size} with rate {self.rate}")
-        return np.random.exponential(self.rate, size).tolist()  # type: ignore
+        return list(np.random.exponential(self.rate, size))
 
 
 @dataclass
@@ -44,7 +44,7 @@ class UniformInt(Distribution):
 
     def generate_distribution(self, size: int) -> List[int]:
         logger.debug(f"Generating uniform int distribution of size {size} with low {self.low} and high {self.high}")
-        return np.random.randint(self.low, self.high, size).astype(int).tolist()  # type: ignore
+        return [int(elem) for elem in np.random.randint(self.low, self.high, size)]
 
 
 @dataclass
@@ -54,7 +54,7 @@ class NormalInt(Distribution):
 
     def generate_distribution(self, size: int) -> List[int]:
         logger.debug(f"Generating normal int distribution of size {size} with mean {self.mean} and std {self.std}")
-        return np.random.normal(self.mean, self.std, size).astype(int).tolist()  # type: ignore
+        return [int(elem) for elem in np.random.normal(self.mean, self.std, size)]
 
 
 @dataclass
@@ -64,7 +64,7 @@ class Same(Distribution):
     def generate_distribution(self, size: int) -> List[float]:
         logger.debug(f"Generating same distribution of size {size} with start {self.start}")
         rval = np.ones(size) * self.start
-        return rval.tolist()  # type: ignore
+        return list(rval)
 
 
 @dataclass
@@ -73,7 +73,7 @@ class Even(Distribution):
 
     def generate_distribution(self, size: int) -> List[float]:
         logger.debug(f"Generating even distribution of size {size} with rate {self.rate}")
-        return np.linspace(0, (size - 1) / self.rate, num=size).tolist()  # type: ignore
+        return list(np.linspace(0, (size - 1) / self.rate, num=size))
 
 
 @dataclass
@@ -86,7 +86,7 @@ class AdjustedUniformInt(Distribution):
         rval = np.empty(len(lengths), dtype=np.int64)
         for i, length in enumerate(lengths):
             rval[i] = np.random.randint(self.low, self.high - length)
-        return rval.tolist()  # type: ignore
+        return list(rval)
 
 
 DISTRIBUTION_CLASSES = {
