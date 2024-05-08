@@ -129,7 +129,7 @@ class Textfile(Data):
             )
 
         if len(input_data) < size:
-            logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
+            logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
         return random.sample(input_data, size)
 
