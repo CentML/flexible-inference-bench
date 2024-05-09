@@ -129,7 +129,7 @@ class Textfile(Data):
             )
 
         if len(input_data) < size:
-            logger.warning(f"Could not generate the number of requests required.\nSending: {len(input_data)} requests")
+            logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
         return random.sample(input_data, size)
 
@@ -203,7 +203,7 @@ class Random(Data):
             )
 
         if len(input_data) < size:
-            logger.warning(f"Could not generate the number of requests required.\nSending: {len(input_data)} requests")
+            logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
         return random.sample(input_data, size)
 
@@ -237,6 +237,6 @@ class ShareGPT(Data):
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         if len(self.data) < size:
-            logger.warning(f"Could not generate the number of requests required.\nSending: {len(self.data)} requests")
+            logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data
         return random.sample(self.data, size)
