@@ -8,8 +8,6 @@ from modular_inference_benchmark.engine import distributions
 
 logger = logging.getLogger(__name__)
 
-PREFIX_OPTIONS = ["no-prefix", "prefix-with-text", "prefix-with-len"]
-
 
 def get_data_end(
     data: List[int], tokenizer: transformers.PreTrainedTokenizer, idx: int, length: int, num_trials: int
