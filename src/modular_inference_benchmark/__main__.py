@@ -168,8 +168,6 @@ def parse_args() -> argparse.Namespace:
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
     )
 
-    parser.add_argument("--trust-remote-code", action="store_true", help="Trust remote code from huggingface")
-
     parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
     parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
