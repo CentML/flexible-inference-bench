@@ -10,7 +10,7 @@ import numpy as np
 from transformers import AutoTokenizer
 from modular_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
 from modular_inference_benchmark.utils.utils import configure_logging
-from modular_inference_benchmark.engine.data import ShareGPT, Textfile, Random, PREFIX_OPTIONS
+from modular_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from modular_inference_benchmark.engine.client import Client
 from modular_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
 
@@ -24,13 +24,22 @@ def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
 
 
 def generate_request_times(args: argparse.Namespace) -> List[int | float]:
-    size = args.num_of_req
-    dist = select_distribution(args.request_distribution)
-    requests_times = dist.generate_distribution(size)
-    return requests_times
+    if args.num_of_req:
+        size = args.num_of_req
+        dist = select_distribution(args.request_distribution)
+        requests_times = dist.generate_distribution(size)
+        return requests_times
+    else:
+        size = 1
+        dist = select_distribution(args.request_distribution)
+        # Check if any elements exceed max length
+        while not [i for i in dist.generate_distribution(size) if i > args.max_time_for_reqs]:
+            size *= 2
+        requests_times = dist.generate_distribution(size)
+        return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
+def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int, int]]:
     model_id = args.model
     tokenizer_id = args.tokenizer if args.tokenizer else model_id
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
@@ -49,8 +58,11 @@ def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
         input_prompt_dist = select_distribution(args.input_token_distribution)
         output_token_dist = select_distribution(args.output_token_distribution)
 
-        if args.prompt_prefix in ("no-prefix", "prefix-with-len"):
-            prefix_len = args.prefix_len if args.prompt_prefix == "prefix-with-len" else 0
+        if args.prefix_len or args.no_prefix:
+            if args.prefix_len:
+                prefix_len = args.prefix_len
+            else:
+                prefix_len = 0
             prompt_cls = (
                 Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
@@ -70,13 +82,13 @@ def generate_prompts(args: argparse.Namespace) -> List[Tuple[str, int, int]]:
         sys.exit(1)
 
     factor = 1.2
-    size = int(args.num_of_req * factor)
+    size = int(size * factor)
 
     data = prompt_cls.generate_data(size)
-    if len(data) < args.num_of_req:
+    if len(data) < size:
         logger.warning("The number of requests is less than the size.")
     else:
-        data = data[: args.num_of_req]
+        data = data[:size]
     return data
 
 
@@ -94,52 +106,54 @@ def parse_args() -> argparse.Namespace:
         help="Backend inference engine.",
     )
 
-    parser.add_argument(
+    url_group = parser.add_mutually_exclusive_group()
+
+    url_group.add_argument(
         "--base-url", type=str, default=None, help="Server or API base url if not using http host and port."
     )
 
-    parser.add_argument("--host", type=str, default="localhost")
-
-    parser.add_argument("--port", type=int, default=8000)
+    url_group.add_argument(
+        "--host_port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
+    )
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
-    parser.add_argument("--num-of-req", type=int, default=200, help="total number of request.")
+    req_group = parser.add_mutually_exclusive_group(required=True)
+
+    req_group.add_argument("--num-of-req", type=int, default=100, help="Total number of request.")
+
+    req_group.add_argument("--max-time-for-reqs", type=int, default=None, help="Max time for requests in seconds.")
 
     parser.add_argument(
         "--request-distribution",
         nargs="*",
         default=["exponential", 1],
-        help="request distribution [Distribution_type (inputs to distribution)]",
+        help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
     parser.add_argument(
         "--input-token-distribution",
         nargs="*",
         default=["uniform", 0, 255],
-        help="request distribution [Distribution_type (inputs to distribution)]",
+        help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
     parser.add_argument(
         "--output-token-distribution",
         nargs="*",
         default=["uniform", 0, 255],
-        help="request distribution [Distribution_type (inputs to distribution)]",
+        help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    parser.add_argument(
-        "--prompt-prefix",
-        type=str,
-        choices=PREFIX_OPTIONS,
-        default="no-prefix",
-        help="Choose if you would like to share a similar prefix for all the requests.",
+    prefix_group = parser.add_mutually_exclusive_group(required=True)
+
+    prefix_group.add_argument(
+        "--prefix-text", type=str, default="This is a default prompt", help="Text to use as prefix for all requests."
     )
 
-    parser.add_argument(
-        "--prefix-text", type=str, default="This is a default prompt", help="text to use as prefix for all requests."
-    )
+    prefix_group.add_argument("--prefix-len", type=int, default=20, help="Length of prefix to use for all requests.")
 
-    parser.add_argument("--prefix-len", type=int, default=20, help="length of prefix to use for all requests.")
+    prefix_group.add_argument('--no-prefix', action='store_true', help='No prefix for requests.')
 
     parser.add_argument(
         "--dataset-name",
@@ -179,14 +193,18 @@ def main() -> None:
     print(args)
     np.random.seed(args.seed)
     random.seed(args.seed)
-    requests_prompts = generate_prompts(args)
-    requests_times = generate_request_times(args)[: len(requests_prompts)]
+    requests_times = generate_request_times(args)
+    size = len(requests_times)
+    requests_prompts = generate_prompts(args, size)
+    min_length = min(len(requests_prompts), len(requests_times))
+    requests_prompts = requests_prompts[:min_length]
+    requests_times = requests_times[:min_length]
 
     if args.base_url is None:
         assert args.host and args.port, "Host and port must be provided if base url is not provided."
-        args.api_url = f"http://{args.host}:{args.port}{args.endpoint}"
+        args.api_url = f"http://{args.host_port}{args.endpoint}"
     else:
-        args.api_url = f"{args.base_url}/{args.endpoint}"
+        args.api_url = f"{args.base_url}{args.endpoint}"
 
     client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
