@@ -115,13 +115,14 @@ class Textfile(Data):
             if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                 continue
             prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
-            if prompt_end < 4 or output_tokens[i] < 4:
+            achieved_len = (prompt_end - starts[i]) + prefix_len
+            if achieved_len < 4 or output_tokens[i] < 4:
                 continue
 
             input_data.append(
                 (
                     self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
-                    prompt_end,
+                    achieved_len,
                     output_tokens[i],
                 )
             )
@@ -193,11 +194,12 @@ class Random(Data):
             if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                 continue
             prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
-            if prompt_end < 4 or output_tokens[i] < 4:
+            achieved_len = prompt_end + prefix_len
+            if achieved_len < 4 or output_tokens[i] < 4:
                 continue
 
             input_data.append(
-                (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), prompt_end, output_tokens[i])
+                (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])
             )
 
         if len(input_data) < size:

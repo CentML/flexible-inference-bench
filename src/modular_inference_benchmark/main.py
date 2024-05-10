@@ -147,18 +147,16 @@ def parse_args() -> argparse.Namespace:
 
     prefix_group = parser.add_mutually_exclusive_group(required=True)
 
-    prefix_group.add_argument(
-        "--prefix-text", type=str, default="This is a default prompt", help="Text to use as prefix for all requests."
-    )
+    prefix_group.add_argument("--prefix-text", type=str, default=None, help="Text to use as prefix for all requests.")
 
-    prefix_group.add_argument("--prefix-len", type=int, default=20, help="Length of prefix to use for all requests.")
+    prefix_group.add_argument("--prefix-len", type=int, default=None, help="Length of prefix to use for all requests.")
 
     prefix_group.add_argument('--no-prefix', action='store_true', help='No prefix for requests.')
 
     parser.add_argument(
         "--dataset-name",
         type=str,
-        default="sharegpt",
+        default="random",
         choices=["sharegpt", "other", "random"],
         help="Name of the dataset to benchmark on.",
     )
@@ -183,6 +181,11 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
 
+    parser.add_argument("--config-file", default=None, help="configuration file")
+    args = parser.parse_args()
+    if args.config_file:
+        with open(args.config_file, 'r') as f:
+            parser.set_defaults(**json.load(f))
     args = parser.parse_args()
     return args
 
@@ -201,7 +204,7 @@ def main() -> None:
     requests_times = requests_times[:min_length]
 
     if args.base_url is None:
-        assert args.host and args.port, "Host and port must be provided if base url is not provided."
+        assert args.host_port, "Host and port must be provided if base url is not provided."
         args.api_url = f"http://{args.host_port}{args.endpoint}"
     else:
         args.api_url = f"{args.base_url}{args.endpoint}"
