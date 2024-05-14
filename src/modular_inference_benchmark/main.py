@@ -1,6 +1,5 @@
 import argparse
 import json
-import dataclasses
 import logging
 import random
 import asyncio

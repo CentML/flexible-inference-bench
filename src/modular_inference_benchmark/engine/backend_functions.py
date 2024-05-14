@@ -4,8 +4,8 @@ import os
 import sys
 import time
 import traceback
-from pydantic import BaseModel, Field
 from typing import List, Optional
+from pydantic import BaseModel, Field
 
 import aiohttp
 from tqdm.asyncio import tqdm
