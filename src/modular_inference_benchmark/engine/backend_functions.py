@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import traceback
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 import aiohttp
@@ -13,8 +13,7 @@ from tqdm.asyncio import tqdm
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
 
 
-@dataclass
-class RequestFuncInput:
+class RequestFuncInput(BaseModel):
     prompt: str
     api_url: str
     prompt_len: int
@@ -24,13 +23,12 @@ class RequestFuncInput:
     use_beam_search: bool = False
 
 
-@dataclass
-class RequestFuncOutput:
+class RequestFuncOutput(BaseModel):
     generated_text: str = ""
     success: bool = False
     latency: float = 0.0
     ttft: float = 0.0  # Time to first token
-    itl: List[float] = field(default_factory=list)  # List of inter-token latencies
+    itl: List[float] = Field(default_factory=list)  # List of inter-token latencies
     prompt_len: int = 0
     error: str = ""
 

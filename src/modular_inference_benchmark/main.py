@@ -215,7 +215,7 @@ def main() -> None:
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(
-                json.dumps([dataclasses.asdict(request_func_output) for request_func_output in output_list], indent=4)  # type: ignore
+                json.dumps([request_func_output.model_dump() for request_func_output in output_list], indent=4)  # type: ignore
             )
     else:
         logger.debug(f"{output_list}")
