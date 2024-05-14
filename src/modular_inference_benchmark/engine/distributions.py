@@ -86,7 +86,7 @@ class AdjustedUniformInt(Distribution):
         rval = np.empty(len(lengths), dtype=np.int64)
         for i, length in enumerate(lengths):
             rval[i] = np.random.randint(self.low, self.high - length)
-        return list(rval)
+        return list(rval.tolist())
 
 
 DISTRIBUTION_CLASSES = {
