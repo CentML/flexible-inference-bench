@@ -41,13 +41,13 @@ class Client:
 
         request_func_inputs = [
             RequestFuncInput(
-                data_sample[0],
-                self.api_url,
-                data_sample[1],
-                data_sample[2],
-                self.model_id,
-                self.best_of,
-                self.use_beam_search,
+                prompt=data_sample[0],
+                api_url=self.api_url,
+                prompt_len=data_sample[1],
+                output_len=data_sample[2],
+                model=self.model_id,
+                best_of=self.best_of,
+                use_beam_search=self.use_beam_search,
             )
             for data_sample in data
         ]
