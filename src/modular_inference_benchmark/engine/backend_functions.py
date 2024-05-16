@@ -332,6 +332,7 @@ async def async_request_openai_chat_completions(
         pbar.update(1)
     return output
 
+
 async def async_request_cserve_completions(
     request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
 ) -> RequestFuncOutput:
@@ -362,7 +363,7 @@ async def async_request_cserve_completions(
                         if not chunk_bytes:
                             continue
                         chunk = chunk_bytes.decode("utf-8")
-                        
+
                         timestamp = time.perf_counter()
                         # First token
                         if ttft == 0.0:
@@ -389,7 +390,6 @@ async def async_request_cserve_completions(
     return output
 
 
-
 # Since vllm must support Python 3.8, we can't use str.removeprefix(prefix)
 # introduced in Python 3.9
 def remove_prefix(text: str, prefix: str) -> str:
@@ -402,7 +402,6 @@ ASYNC_REQUEST_FUNCS = {
     "tgi": async_request_tgi,
     "vllm": async_request_openai_completions,
     "cserve": async_request_cserve_completions,
-    "cserve": async_request_openai_completions,
     "lmdeploy": async_request_openai_completions,
     "deepspeed-mii": async_request_deepspeed_mii,
     "openai": async_request_openai_completions,
