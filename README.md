@@ -25,7 +25,6 @@ pip install .
 | --dataset-path | Path to the dataset |
 | --model | Name of the model |
 | --tokenizer | Name or path of the tokenizer, if not using the default tokenizer.
-| --trust-remote-code | Trust remote code from huggingface |
 | --disable-tqdm | Specify to disable tqdm progress bar |
 | --best-of | Number of best completions to return |
 | --use-beam-search | Use beam search for completions |
