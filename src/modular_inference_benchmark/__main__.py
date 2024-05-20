@@ -112,7 +112,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     url_group.add_argument(
-        "--host_port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
+        "--host-port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
     )
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
