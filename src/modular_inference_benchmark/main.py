@@ -119,7 +119,7 @@ def parse_args() -> argparse.Namespace:
 
     req_group = parser.add_mutually_exclusive_group(required=True)
 
-    req_group.add_argument("--num-of-req", type=int, default=100, help="Total number of request.")
+    req_group.add_argument("--num-of-req", type=int, default=None, help="Total number of request.")
 
     req_group.add_argument("--max-time-for-reqs", type=int, default=None, help="Max time for requests in seconds.")
 
