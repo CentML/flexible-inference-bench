@@ -4,6 +4,7 @@ import logging
 import random
 import asyncio
 import sys
+import time
 from typing import List, Any, Tuple, Union
 import numpy as np
 from transformers import AutoTokenizer
@@ -213,13 +214,19 @@ def main() -> None:
         args.api_url = f"{args.base_url}{args.endpoint}"
 
     client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
+    t = time.perf_counter()
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
+    benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
+    output = {
+        "time": benchmark_time,
+        "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
+        "inputs": requests_prompts,
+        "tokenizer": args.tokenizer,
+    }
     if args.output_file:
         with open(args.output_file, "w") as f:
-            f.write(
-                json.dumps([request_func_output.model_dump() for request_func_output in output_list], indent=4)  # type: ignore
-            )
+            f.write(json.dumps(output, indent=4))  # type: ignore
     else:
         logger.debug(f"{output_list}")
 
