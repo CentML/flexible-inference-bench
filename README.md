@@ -18,7 +18,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | argument | description |
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
-| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
+| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`-cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
 | `--base-url` | Server or API base url, if not using http host and port. |
 | `--host_port` | Host and port for the server in **`host:port`** format. |
 | `--endpoint` | API endpoint. |
@@ -81,6 +81,7 @@ P99 TPOT (ms):                           2750.76
 ```
 
 Supports the following args:
+
 | argument | description |
 | --- | --- |
 | `--datapath` | Path to the output json file produced. |
@@ -88,7 +89,6 @@ Supports the following args:
 #### `itl.py`
 
 Returns a plot of inter-token latencies for a specific request. Takes the following args:
-
 
 | argument | description |
 | --- | --- |
