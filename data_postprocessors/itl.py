@@ -16,7 +16,7 @@ def parse_args():
 
 
 def plot_itl(data, idx, output):
-    itls = data[idx]["itl"]
+    itls = data["outputs"][idx]["itl"]
     plt.title(f"Inter-Token Latencies for Request {idx}")
     plt.xlabel("Token")
     plt.ylabel("Inter-Token Latency (s)")
