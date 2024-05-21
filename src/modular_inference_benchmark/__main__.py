@@ -117,7 +117,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
-    req_group = parser.add_mutually_exclusive_group(required=True)
+    req_group = parser.add_mutually_exclusive_group()
 
     req_group.add_argument("--num-of-req", type=int, default=None, help="Total number of request.")
 
@@ -144,7 +144,7 @@ def parse_args() -> argparse.Namespace:
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    prefix_group = parser.add_mutually_exclusive_group(required=True)
+    prefix_group = parser.add_mutually_exclusive_group()
 
     prefix_group.add_argument("--prefix-text", type=str, default=None, help="Text to use as prefix for all requests.")
 
@@ -162,7 +162,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
 
-    parser.add_argument("--model", type=str, required=True, help="Name of the model.")
+    parser.add_argument("--model", type=str, help="Name of the model.")
 
     parser.add_argument(
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
