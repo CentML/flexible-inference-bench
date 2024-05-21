@@ -81,9 +81,9 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
         sys.exit(1)
 
     factor = 1.2
-    size = int(size * factor)
+    size_adjusted = int(size * factor)
 
-    data = prompt_cls.generate_data(size)
+    data = prompt_cls.generate_data(size_adjusted)
     if len(data) < size:
         logger.warning("The number of requests is less than the size.")
     else:
@@ -112,12 +112,12 @@ def parse_args() -> argparse.Namespace:
     )
 
     url_group.add_argument(
-        "--host_port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
+        "--host-port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
     )
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
-    req_group = parser.add_mutually_exclusive_group(required=True)
+    req_group = parser.add_mutually_exclusive_group()
 
     req_group.add_argument("--num-of-req", type=int, default=None, help="Total number of request.")
 
@@ -144,7 +144,7 @@ def parse_args() -> argparse.Namespace:
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    prefix_group = parser.add_mutually_exclusive_group(required=True)
+    prefix_group = parser.add_mutually_exclusive_group()
 
     prefix_group.add_argument("--prefix-text", type=str, default=None, help="Text to use as prefix for all requests.")
 
@@ -162,13 +162,11 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
 
-    parser.add_argument("--model", type=str, required=True, help="Name of the model.")
+    parser.add_argument("--model", type=str, help="Name of the model.")
 
     parser.add_argument(
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
     )
-
-    parser.add_argument("--trust-remote-code", action="store_true", help="Trust remote code from huggingface")
 
     parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
@@ -186,6 +184,12 @@ def parse_args() -> argparse.Namespace:
         with open(args.config_file, 'r') as f:
             parser.set_defaults(**json.load(f))
     args = parser.parse_args()
+    if not (args.prefix_text or args.prefix_len or args.no_prefix):
+        parser.error("Please provide either prefix text or prefix length or specify no prefix.")
+    if not (args.num_of_req or args.max_time_for_reqs):
+        parser.error("Please provide either number of requests or max time for requests.")
+    if not args.model:
+        parser.error("Please provide the model name.")
     return args
 
 
