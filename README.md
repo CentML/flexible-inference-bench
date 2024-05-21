@@ -12,6 +12,8 @@ pip install .
 ## Usage
 After installing with the above instructions, the benchmarker can be invoked with `python -m modular_inference_benchmarker <args>`.
 
+After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
+
 ### Parameters
 | argument | description |
 | --- | --- |
@@ -47,3 +49,45 @@ The output json file in an array of objects that contain the following fields:<b
 * `itl`: Inter-token latency
 * `prompt_len`: Length of the prompt
 * `error`: Error message
+
+### Data Postprocessors
+Below is a description of the data postprocessors.
+
+#### `performance.py`
+Prints the following output for a given run, same as vLLM.
+
+```
+============ Serving Benchmark Result ============
+Successful requests:                     20
+Benchmark duration (s):                  19.39
+Total input tokens:                      407
+Total generated tokens:                  5112
+Request throughput (req/s):              1.03
+Input token throughput (tok/s):          20.99
+Output token throughput (tok/s):         263.66
+---------------Time to First Token----------------
+Mean TTFT (ms):                          24.66
+Median TTFT (ms):                        24.64
+P99 TTFT (ms):                           34.11
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          2295.86
+Median TPOT (ms):                        2362.54
+P99 TPOT (ms):                           2750.76
+==================================================
+```
+
+Supports the following args:
+| argument | description |
+| --- | --- |
+| `--datapath` | Path to the output json file produced. |
+
+#### `itl.py`
+
+Returns a plot of inter-token latencies for a specific request. Takes the following args:
+
+
+| argument | description |
+| --- | --- |
+| `--datapath` | Path to the output json file produced. |
+| `--output` | Path to save figure supported by matplotlib. |
+| `--request-num` | Which request to produce ITL plot for. |
