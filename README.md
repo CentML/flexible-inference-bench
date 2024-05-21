@@ -38,7 +38,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | `--debug` | Log debug messages. |
 | `--config-file` | Path to configuration file. |
 
-**For ease of use we recommend passing a configuration file with all the required parameters for your use case. An example is provided in the file args.json**
+**For ease of use we recommend passing a configuration file with all the required parameters for your use case. Examples are provided in `examples/`**
 
 ### Output
 The output json file in an array of objects that contain the following fields:<br>
