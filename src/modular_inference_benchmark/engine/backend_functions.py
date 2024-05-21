@@ -333,7 +333,7 @@ async def async_request_openai_chat_completions(
     return output
 
 
-async def async_request_cserve_completions(
+async def async_request_cserve_debug(
     request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
@@ -401,7 +401,7 @@ def remove_prefix(text: str, prefix: str) -> str:
 ASYNC_REQUEST_FUNCS = {
     "tgi": async_request_tgi,
     "vllm": async_request_openai_completions,
-    "cserve": async_request_cserve_completions,
+    "cserve-debug": async_request_cserve_debug,
     "lmdeploy": async_request_openai_completions,
     "deepspeed-mii": async_request_deepspeed_mii,
     "openai": async_request_openai_completions,
