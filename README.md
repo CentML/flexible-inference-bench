@@ -42,13 +42,17 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 
 ### Output
 The output json file in an array of objects that contain the following fields:<br>
-* `text`: Generated text
-* `success`: Whether the request was successful
-* `latency`: End-to-end time for the request
-* `ttft`: Time to first token
-* `itl`: Inter-token latency
-* `prompt_len`: Length of the prompt
-* `error`: Error message
+* `time`: Total time
+* `outputs`: 
+    * `text`: Generated text
+    * `success`: Whether the request was successful
+    * `latency`: End-to-end time for the request
+    * `ttft`: Time to first token
+    * `itl`: Inter-token latency
+    * `prompt_len`: Length of the prompt
+    * `error`: Error message
+* `inputs`: List of `[prompt string, input tokens, expected output tokens]`
+* `tokenizer`: Tokenizer name
 
 ### Data Postprocessors
 Below is a description of the data postprocessors.
