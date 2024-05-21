@@ -1,0 +1,13 @@
+{ 
+    "backend": "cserve",
+    "host_port": "localhost:8093",
+    "endpoint": "/openai/v1/completions",
+    "dataset_name": "random",
+    "input_token_distribution": ["normal", 20, 10],
+    "output_token_distribution": ["uniform", 200, 201],
+    "request_distribution": ["exponential", 5],
+    "num_of_req": 20,
+    "model": "gpt2",
+    "tokenizer": "gpt2",
+    "no_prefix": true
+}

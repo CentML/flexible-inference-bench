@@ -1,9 +1,0 @@
-{ 
-    "backend": "vllm",
-    "host_port": "localhost:8000",
-    "endpoint": "/v1/completions",
-    "dataset_name": "random",
-    "input_token_distribution": ["normal", 200, 10],
-    "output_token_distribution": ["uniform", 200, 300],
-    "request_distribution": ["exponential", 5]
-}
