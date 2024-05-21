@@ -81,9 +81,9 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
         sys.exit(1)
 
     factor = 1.2
-    size = int(size * factor)
+    size_adjusted = int(size * factor)
 
-    data = prompt_cls.generate_data(size)
+    data = prompt_cls.generate_data(size_adjusted)
     if len(data) < size:
         logger.warning("The number of requests is less than the size.")
     else:
@@ -184,6 +184,12 @@ def parse_args() -> argparse.Namespace:
         with open(args.config_file, 'r') as f:
             parser.set_defaults(**json.load(f))
     args = parser.parse_args()
+    if not (args.prefix_text or args.prefix_len or args.no_prefix):
+        parser.error("Please provide either prefix text or prefix length or specify no prefix.")
+    if not (args.num_of_req or args.max_time_for_reqs):
+        parser.error("Please provide either number of requests or max time for requests.")
+    if not args.model:
+        parser.error("Please provide the model name.")
     return args
 
 
