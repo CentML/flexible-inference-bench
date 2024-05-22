@@ -96,7 +96,7 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
 
-    parser.add_argument("--seed", type=int, default=42, help="seed for reproducibility")
+    parser.add_argument("--seed", type=int, default=None, help="seed for reproducibility")
 
     parser.add_argument(
         "--backend",
@@ -197,9 +197,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     configure_logging(args)
-    print(args)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
+    logger.info(f"Arguments: {args}")
+    if args.seed:
+        np.random.seed(args.seed)
+        random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
     requests_prompts = generate_prompts(args, size)
