@@ -10,7 +10,7 @@ pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `python -m modular_inference_benchmarker <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `python -m modular_inference_benchmark <args>`.
 
 After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
 
