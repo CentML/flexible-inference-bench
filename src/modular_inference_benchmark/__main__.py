@@ -117,7 +117,7 @@ def parse_args() -> argparse.Namespace:
         "--host-port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
     )
     parser.add_argument(
-        "--https-ssl", default=True, help="whether to check for ssl csertificate for https endpoints, default is True"
+        "--https-ssl", default=True, help="whether to check for ssl certificate for https endpoints, default is True"
     )
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
