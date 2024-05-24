@@ -178,7 +178,9 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
-    parser.add_argument("--output-file", type=str, default='output-file.json', help="Output json file to save the results.")
+    parser.add_argument(
+        "--output-file", type=str, default='output-file.json', help="Output json file to save the results."
+    )
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
 
@@ -228,7 +230,7 @@ def main() -> None:
         "time": benchmark_time,
         "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
         "inputs": requests_prompts,
-        "tokenizer": args.tokenizer if args.tokenizer else args.model
+        "tokenizer": args.tokenizer if args.tokenizer else args.model,
     }
     if args.output_file:
         with open(args.output_file, "w") as f:
