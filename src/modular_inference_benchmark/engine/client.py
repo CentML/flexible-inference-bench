@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 class Client:
     def __init__(
-        self, backend: str, api_url: str, model_id: str, best_of: int, use_beam_search: bool, disable_tqdm: bool
+        self,
+        backend: str,
+        api_url: str,
+        model_id: str,
+        best_of: int,
+        use_beam_search: bool,
+        disable_tqdm: bool,
+        ssl: bool,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -21,6 +28,7 @@ class Client:
         self.best_of = best_of
         self.use_beam_search = use_beam_search
         self.disable_tqdm = disable_tqdm
+        self.ssl = ssl
 
     @property
     def request_func(self) -> Callable[[RequestFuncInput, Any | None], Coroutine[Any, Any, RequestFuncOutput]]:
@@ -48,6 +56,7 @@ class Client:
                 model=self.model_id,
                 best_of=self.best_of,
                 use_beam_search=self.use_beam_search,
+                ssl=self.ssl,
             )
             for data_sample in data
         ]

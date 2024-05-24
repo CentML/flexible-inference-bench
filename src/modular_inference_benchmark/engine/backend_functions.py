@@ -21,6 +21,7 @@ class RequestFuncInput(BaseModel):
     model: str
     best_of: int = 1
     use_beam_search: bool = False
+    ssl: bool = True
 
 
 class RequestFuncOutput(BaseModel):
@@ -54,7 +55,7 @@ async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional
         st = time.perf_counter()
         most_recent_timestamp = st
         try:
-            async with session.post(url=api_url, json=payload) as response:
+            async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -111,7 +112,7 @@ async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Opti
         st = time.perf_counter()
         most_recent_timestamp = st
         try:
-            async with session.post(url=api_url, json=payload) as response:
+            async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -173,7 +174,9 @@ async def async_request_deepspeed_mii(
 
         st = time.perf_counter()
         try:
-            async with session.post(url=request_func_input.api_url, json=payload) as response:
+            async with session.post(
+                url=request_func_input.api_url, json=payload, verify_ssl=request_func_input.ssl
+            ) as response:
                 if response.status == 200:
                     parsed_resp = await response.json()
                     output.latency = time.perf_counter() - st
@@ -218,7 +221,9 @@ async def async_request_openai_completions(
         st = time.perf_counter()
         most_recent_timestamp = st
         try:
-            async with session.post(url=api_url, json=payload, headers=headers) as response:
+            async with session.post(
+                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+            ) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -288,7 +293,9 @@ async def async_request_openai_chat_completions(
         st = time.perf_counter()
         most_recent_timestamp = st
         try:
-            async with session.post(url=api_url, json=payload, headers=headers) as response:
+            async with session.post(
+                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+            ) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -356,7 +363,9 @@ async def async_request_cserve_debug(
         st = time.perf_counter()
         most_recent_timestamp = st
         try:
-            async with session.post(url=api_url, json=payload, headers=headers) as response:
+            async with session.post(
+                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+            ) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()

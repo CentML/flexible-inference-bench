@@ -6,6 +6,7 @@ import asyncio
 import sys
 import time
 from typing import List, Any, Tuple, Union
+import validators
 import numpy as np
 from transformers import AutoTokenizer
 from modular_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
@@ -115,6 +116,9 @@ def parse_args() -> argparse.Namespace:
     url_group.add_argument(
         "--host-port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
     )
+    parser.add_argument(
+        "--https-ssl", default=True, help="whether to check for ssl certificate for https endpoints, default is True"
+    )
 
     parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
@@ -214,7 +218,12 @@ def main() -> None:
     else:
         args.api_url = f"{args.base_url}{args.endpoint}"
 
-    client = Client(args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm)
+    if not validators.url(args.api_url):
+        raise ValueError(f"api url is not a valid url: {args.api_url}")
+
+    client = Client(
+        args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm, args.https_ssl
+    )
     t = time.perf_counter()
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
     benchmark_time = time.perf_counter() - t
