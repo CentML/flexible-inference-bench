@@ -6,7 +6,6 @@ import asyncio
 import sys
 import time
 from typing import List, Any, Tuple, Union
-import validators
 import numpy as np
 from transformers import AutoTokenizer
 from modular_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
@@ -179,7 +178,9 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
-    parser.add_argument("--output-file", type=str, default=None, help="Output json file to save the results.")
+    parser.add_argument(
+        "--output-file", type=str, default='output-file.json', help="Output json file to save the results."
+    )
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
 
@@ -218,9 +219,6 @@ def main() -> None:
     else:
         args.api_url = f"{args.base_url}{args.endpoint}"
 
-    if not validators.url(args.api_url):
-        raise ValueError(f"api url is not a valid url: {args.api_url}")
-
     client = Client(
         args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm, args.https_ssl
     )
@@ -232,7 +230,7 @@ def main() -> None:
         "time": benchmark_time,
         "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
         "inputs": requests_prompts,
-        "tokenizer": args.tokenizer,
+        "tokenizer": args.tokenizer if args.tokenizer else args.model,
     }
     if args.output_file:
         with open(args.output_file, "w") as f:
