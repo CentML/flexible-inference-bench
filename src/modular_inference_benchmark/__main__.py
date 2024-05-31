@@ -223,7 +223,14 @@ def main() -> None:
         args.api_url = f"{args.base_url}{args.endpoint}"
 
     client = Client(
-        args.backend, args.api_url, args.model, args.best_of, args.use_beam_search, args.disable_tqdm, args.https_ssl, not args.disable_ignore_eos
+        args.backend,
+        args.api_url,
+        args.model,
+        args.best_of,
+        args.use_beam_search,
+        args.disable_tqdm,
+        args.https_ssl,
+        not args.disable_ignore_eos,
     )
     t = time.perf_counter()
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
