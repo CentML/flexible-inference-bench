@@ -22,6 +22,7 @@ class RequestFuncInput(BaseModel):
     best_of: int = 1
     use_beam_search: bool = False
     ssl: bool = True
+    ignore_eos: bool = True
 
 
 class RequestFuncOutput(BaseModel):
@@ -210,6 +211,7 @@ async def async_request_openai_completions(
             "best_of": request_func_input.best_of,
             "max_tokens": request_func_input.output_len,
             "stream": True,
+            "ignore_eos": request_func_input.ignore_eos,
         }
         headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
@@ -282,6 +284,7 @@ async def async_request_openai_chat_completions(
             "temperature": 0.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
+            "ignore_eos": request_func_input.ignore_eos,
         }
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
@@ -352,6 +355,7 @@ async def async_request_cserve_debug(
             "prompt": request_func_input.prompt,
             "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
             "stream": True,
+            "ignore_eos": request_func_input.ignore_eos,
         }
         headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 

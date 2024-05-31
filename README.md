@@ -18,7 +18,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | argument | description |
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
-| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`-cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
+| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
 | `--base-url` | Server or API base url, if not using http host and port. |
 | `--host_port` | Host and port for the server in **`host:port`** format. |
 | `--endpoint` | API endpoint. |
@@ -36,6 +36,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | `--use-beam-search` | Use beam search for completions. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
+| `--disable-ignore-eos` | Ignores end of sequence. |
 | `--config-file` | Path to configuration file. |
 
 **For ease of use we recommend passing a configuration file with all the required parameters for your use case. Examples are provided in `examples/`**

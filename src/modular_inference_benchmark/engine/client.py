@@ -21,6 +21,7 @@ class Client:
         use_beam_search: bool,
         disable_tqdm: bool,
         ssl: bool,
+        ignore_eos: bool,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -29,6 +30,7 @@ class Client:
         self.use_beam_search = use_beam_search
         self.disable_tqdm = disable_tqdm
         self.ssl = ssl
+        self.ignore_eos = ignore_eos
 
     @property
     def request_func(self) -> Callable[[RequestFuncInput, Any | None], Coroutine[Any, Any, RequestFuncOutput]]:
@@ -57,6 +59,7 @@ class Client:
                 best_of=self.best_of,
                 use_beam_search=self.use_beam_search,
                 ssl=self.ssl,
+                ignore_eos=self.ignore_eos,
             )
             for data_sample in data
         ]
