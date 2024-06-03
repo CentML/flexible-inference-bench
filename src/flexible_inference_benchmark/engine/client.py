@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union
+from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union, Dict
 from tqdm import tqdm
 from flexible_inference_benchmark.engine.backend_functions import (
     ASYNC_REQUEST_FUNCS,
@@ -22,6 +22,8 @@ class Client:
         disable_tqdm: bool,
         ssl: bool,
         ignore_eos: bool,
+        stream: bool,
+        cookies: Dict[str, str],
     ):
         self.backend = backend
         self.api_url = api_url
@@ -31,6 +33,8 @@ class Client:
         self.disable_tqdm = disable_tqdm
         self.ssl = ssl
         self.ignore_eos = ignore_eos
+        self.stream = stream
+        self.cookies = cookies
 
     @property
     def request_func(self) -> Callable[[RequestFuncInput, Any | None], Coroutine[Any, Any, RequestFuncOutput]]:
@@ -60,6 +64,8 @@ class Client:
                 use_beam_search=self.use_beam_search,
                 ssl=self.ssl,
                 ignore_eos=self.ignore_eos,
+                stream=self.stream,
+                cookies=self.cookies,
             )
             for data_sample in data
         ]

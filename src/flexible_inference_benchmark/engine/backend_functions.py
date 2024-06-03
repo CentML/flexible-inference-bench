@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import traceback
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 import aiohttp
@@ -23,6 +23,8 @@ class RequestFuncInput(BaseModel):
     use_beam_search: bool = False
     ssl: bool = True
     ignore_eos: bool = True
+    stream: bool = True
+    cookies: Dict[str, str]
 
 
 class RequestFuncOutput(BaseModel):
@@ -201,68 +203,101 @@ async def async_request_openai_completions(
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/completions"), "OpenAI Completions API URL must end with 'v1/completions'."
+    assert not request_func_input.use_beam_search
 
-    async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
-        assert not request_func_input.use_beam_search
-        payload = {
-            "model": request_func_input.model,
-            "prompt": request_func_input.prompt,
-            "temperature": 0.0,
-            "best_of": request_func_input.best_of,
-            "max_tokens": request_func_input.output_len,
-            "stream": True,
-            "ignore_eos": request_func_input.ignore_eos,
-        }
-        headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+    if request_func_input.stream:
+        async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
+            payload = {
+                "model": request_func_input.model,
+                "prompt": request_func_input.prompt,
+                "temperature": 0.0,
+                "best_of": request_func_input.best_of,
+                "max_tokens": request_func_input.output_len,
+                "stream": True,
+                "ignore_eos": request_func_input.ignore_eos,
+            }
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
-        output = RequestFuncOutput()
-        output.prompt_len = request_func_input.prompt_len
+            output = RequestFuncOutput()
+            output.prompt_len = request_func_input.prompt_len
 
-        generated_text = ""
-        ttft = 0.0
-        st = time.perf_counter()
-        most_recent_timestamp = st
-        try:
-            async with session.post(
-                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
-            ) as response:
-                if response.status == 200:
-                    async for chunk_bytes in response.content:
-                        chunk_bytes = chunk_bytes.strip()
-                        if not chunk_bytes:
-                            continue
+            generated_text = ""
+            ttft = 0.0
+            st = time.perf_counter()
+            most_recent_timestamp = st
+            try:
+                async with session.post(
+                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                ) as response:
+                    if response.status == 200:
+                        async for chunk_bytes in response.content:
+                            chunk_bytes = chunk_bytes.strip()
+                            if not chunk_bytes:
+                                continue
 
-                        chunk = remove_prefix(chunk_bytes.decode("utf-8"), "data: ")
-                        if chunk == "[DONE]":
-                            latency = time.perf_counter() - st
-                        else:
-                            data = json.loads(chunk)
+                            chunk = remove_prefix(chunk_bytes.decode("utf-8"), "data: ")
+                            if chunk == "[DONE]":
+                                latency = time.perf_counter() - st
+                            else:
+                                data = json.loads(chunk)
 
-                            if data["choices"][0]["text"]:
-                                timestamp = time.perf_counter()
-                                # First token
-                                if ttft == 0.0:
-                                    ttft = time.perf_counter() - st
-                                    output.ttft = ttft
+                                if data["choices"][0]["text"]:
+                                    timestamp = time.perf_counter()
+                                    # First token
+                                    if ttft == 0.0:
+                                        ttft = time.perf_counter() - st
+                                        output.ttft = ttft
 
-                                # Decoding phase
-                                # NOTE: Some completion API might have a last
-                                # usage summary response without a token so we
-                                # do not want to include as inter-token-latency
-                                elif data.get("usage", None) is None:
-                                    output.itl.append(timestamp - most_recent_timestamp)
+                                    # Decoding phase
+                                    # NOTE: Some completion API might have a last
+                                    # usage summary response without a token so we
+                                    # do not want to include as inter-token-latency
+                                    elif data.get("usage", None) is None:
+                                        output.itl.append(timestamp - most_recent_timestamp)
 
-                                most_recent_timestamp = timestamp
-                                generated_text += data["choices"][0]["text"]
+                                    most_recent_timestamp = timestamp
+                                    generated_text += data["choices"][0]["text"]
 
-                    output.generated_text = generated_text
-                    output.success = True
-                    output.latency = latency
-        except Exception:  # pylint: disable=broad-except
-            output.success = False
-            exc_info = sys.exc_info()
-            output.error = "".join(traceback.format_exception(*exc_info))
+                        output.generated_text = generated_text
+                        output.success = True
+                        output.latency = latency
+            except Exception:  # pylint: disable=broad-except
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error = "".join(traceback.format_exception(*exc_info))
+    else:
+        async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
+            payload = {
+                "model": request_func_input.model,
+                "prompt": request_func_input.prompt,
+                "temperature": 0.0,
+                "best_of": request_func_input.best_of,
+                "max_tokens": request_func_input.output_len,
+                "ignore_eos": request_func_input.ignore_eos,
+                "stream": False,
+            }
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+            output = RequestFuncOutput()
+            output.prompt_len = request_func_input.prompt_len
+            output.ttft = 0
 
+            st = time.perf_counter()
+            try:
+                async with session.post(
+                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                ) as response:
+                    if response.status == 200:
+                        parsed_resp = await response.json()
+                        output.latency = time.perf_counter() - st
+                        output.generated_text = parsed_resp["choices"][0]["text"]
+                        output.success = True
+                    else:
+                        output.error = response.reason or ""
+                        output.success = False
+            except Exception:  # pylint: disable=broad-except
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error = "".join(traceback.format_exception(*exc_info))
     if pbar:
         pbar.update(1)
     return output
@@ -348,56 +383,92 @@ async def async_request_cserve_debug(
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/generate"), "CServe Completions API URL must end with 'v1/generate'."
+    assert not request_func_input.use_beam_search
 
-    async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
-        assert not request_func_input.use_beam_search
-        payload = {
-            "prompt": request_func_input.prompt,
-            "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
-            "stream": True,
-            "ignore_eos": request_func_input.ignore_eos,
-        }
-        headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+    if request_func_input.stream:
+        async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
+            payload = {
+                "prompt": request_func_input.prompt,
+                "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
+                "stream": True,
+                "ignore_eos": request_func_input.ignore_eos,
+            }
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
-        output = RequestFuncOutput()
-        output.prompt_len = request_func_input.prompt_len
+            output = RequestFuncOutput()
+            output.prompt_len = request_func_input.prompt_len
 
-        generated_text = ""
-        ttft = 0.0
-        st = time.perf_counter()
-        most_recent_timestamp = st
-        try:
-            async with session.post(
-                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
-            ) as response:
-                if response.status == 200:
-                    async for chunk_bytes in response.content:
-                        chunk_bytes = chunk_bytes.strip()
-                        if not chunk_bytes:
-                            continue
-                        chunk = chunk_bytes.decode("utf-8")
+            generated_text = ""
+            ttft = 0.0
+            st = time.perf_counter()
+            most_recent_timestamp = st
+            try:
+                async with session.post(
+                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                ) as response:
+                    if response.status == 200:
+                        async for chunk_bytes in response.content:
+                            chunk_bytes = chunk_bytes.strip()
+                            if not chunk_bytes:
+                                continue
+                            chunk = chunk_bytes.decode("utf-8")
 
-                        timestamp = time.perf_counter()
-                        # First token
-                        if ttft == 0.0:
-                            ttft = time.perf_counter() - st
-                            output.ttft = ttft
+                            timestamp = time.perf_counter()
+                            # First token
+                            if ttft == 0.0:
+                                ttft = time.perf_counter() - st
+                                output.ttft = ttft
 
-                        # Decoding phase
-                        else:
-                            output.itl.append(timestamp - most_recent_timestamp)
+                            # Decoding phase
+                            else:
+                                output.itl.append(timestamp - most_recent_timestamp)
 
-                        most_recent_timestamp = timestamp
-                        generated_text += chunk
+                            most_recent_timestamp = timestamp
+                            generated_text += chunk
 
-                    output.generated_text = generated_text
-                    output.success = True
-                    output.latency = time.perf_counter() - st
-        except Exception:  # pylint: disable=broad-except
-            output.success = False
-            exc_info = sys.exc_info()
-            output.error = "".join(traceback.format_exception(*exc_info))
+                        output.generated_text = generated_text
+                        output.success = True
+                        output.latency = time.perf_counter() - st
+            except Exception:  # pylint: disable=broad-except
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error = "".join(traceback.format_exception(*exc_info))
 
+    else:
+        async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
+            payload = {
+                "prompt": request_func_input.prompt,
+                "sampling_params": {
+                    "n": 1,
+                    "temperature": 0,
+                    "max_tokens": request_func_input.output_len,
+                    "ignore_eos": request_func_input.ignore_eos,
+                },
+                "stream": False,
+            }
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+
+            output = RequestFuncOutput()
+            output.prompt_len = request_func_input.prompt_len
+            output.ttft = 0
+
+            st = time.perf_counter()
+            try:
+                async with session.post(
+                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                ) as response:
+                    if response.status == 200:
+                        parsed_resp = await response.json()
+                        output.latency = time.perf_counter() - st
+                        output.generated_text = parsed_resp["text"][0]
+                        output.success = True
+                    else:
+                        output.error = response.reason or ""
+                        output.success = False
+            except Exception:  # pylint: disable=broad-except
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error = "".join(traceback.format_exception(*exc_info))
     if pbar:
         pbar.update(1)
     return output
