@@ -225,7 +225,7 @@ async def async_request_openai_completions(
             ttft = 0.0
             st = time.perf_counter()
             most_recent_timestamp = st
-            latency = 0
+            latency = 0.0
             try:
                 async with session.post(
                     url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
