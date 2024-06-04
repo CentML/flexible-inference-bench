@@ -12,10 +12,11 @@ from transformers import AutoTokenizer
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--datapath", type=str, required=True, help="Path to the data file")
+    parser.add_argument("--use-itl", action="store_true", help="use itl to calculate generated tokens")
     return parser.parse_args()
 
 
-def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream):
+def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream, use_itl):
     actual_output_lens = []
     total_input = 0
     completed = 0
@@ -23,7 +24,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     ttfts = []
     for i in range(len(outputs)):
         if outputs[i]["success"]:
-            output_len = len(tokenizer(outputs[i]["generated_text"]).input_ids)
+            output_len = len(outputs[i]["itl"]) if use_itl else len(tokenizer(outputs[i]["generated_text"]).input_ids)
             actual_output_lens.append(output_len)
             total_input += input_requests[i][1]
             if output_len > 1:
@@ -70,7 +71,7 @@ def main():
     with open(args.datapath, 'r') as f:
         data = json.load(f)
     tokenizer = AutoTokenizer.from_pretrained(data["tokenizer"])
-    calculate_metrics(data["inputs"], data["outputs"], data["time"], tokenizer, data["stream"])
+    calculate_metrics(data["inputs"], data["outputs"], data["time"], tokenizer, data["stream"], args.use_itl)
 
 
 if __name__ == "__main__":
