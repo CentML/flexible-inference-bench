@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union
 from tqdm import tqdm
-from modular_inference_benchmark.engine.backend_functions import (
+from flexible_inference_benchmark.engine.backend_functions import (
     ASYNC_REQUEST_FUNCS,
     RequestFuncInput,
     RequestFuncOutput,
