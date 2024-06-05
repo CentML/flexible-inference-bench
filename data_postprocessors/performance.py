@@ -28,7 +28,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
             actual_output_lens.append(output_len)
             total_input += input_requests[i][1]
             if output_len > 1:
-                    tpots.append((outputs[i]["latency"] - outputs[i]["ttft"]) / (output_len - 1))
+                tpots.append((outputs[i]["latency"] - outputs[i]["ttft"]) / (output_len - 1))
             itls += outputs[i]["itl"]
             ttfts.append(outputs[i]["ttft"])
             completed += 1
@@ -45,9 +45,9 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     mean_tpot_ms = np.mean(tpots) * 1000
     median_tpot_ms = np.median(tpots) * 1000
     p99_tpot_ms = np.percentile(tpots, 99) * 1000
-    mean_itl_ms=np.mean(itls or 0) * 1000
-    median_itl_ms=np.median(itls or 0) * 1000
-    p99_itl_ms=np.percentile(itls or 0, 99) * 1000
+    mean_itl_ms = np.mean(itls or 0) * 1000
+    median_itl_ms = np.median(itls or 0) * 1000
+    p99_itl_ms = np.percentile(itls or 0, 99) * 1000
 
     print("{s:{c}^{n}}".format(s=' Serving Benchmark Result ', n=50, c='='))
     print("{:<40} {:<10}".format("Successful requests:", completed))
@@ -57,7 +57,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     print("{:<40} {:<10.2f}".format("Request throughput (req/s):", request_throughput))
     print("{:<40} {:<10.2f}".format("Input token throughput (tok/s):", input_throughput))
     print("{:<40} {:<10.2f}".format("Output token throughput (tok/s):", output_throughput))
-    
+
     if stream:
         print("{s:{c}^{n}}".format(s='Time to First Token', n=50, c='-'))
         print("{:<40} {:<10.2f}".format("Mean TTFT (ms):", mean_ttft_ms))
