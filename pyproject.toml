@@ -3,9 +3,9 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "modular-inference-benchmark"
+name = "flexible-inference-benchmark"
 version = "0.0.1"
-description = "Modular Inference Benchmark"
+description = "Flexible Inference Benchmark"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
@@ -27,4 +27,4 @@ classifiers = [
 package-dir = {"" = "src"}
 
 [project.scripts]
-inference-benchmark = "modular_inference_benchmark.__main__:main"
+inference-benchmark = "flexible_inference_benchmark.__main__:main"

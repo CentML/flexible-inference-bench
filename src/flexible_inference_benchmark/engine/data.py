@@ -4,7 +4,7 @@ import logging
 import json
 import random
 import transformers
-from modular_inference_benchmark.engine import distributions
+from flexible_inference_benchmark.engine import distributions
 
 logger = logging.getLogger(__name__)
 

@@ -5,5 +5,5 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 cd $SCRIPT_DIR
 
 # run pylint
-python -m pylint --rcfile ./pylintrc -j $(nproc) --ignore-patterns=".*pb2.*" ../../src/modular_inference_benchmark
+python -m pylint --rcfile ./pylintrc -j $(nproc) --ignore-patterns=".*pb2.*" ../../src/flexible_inference_benchmark
 

@@ -1,16 +1,16 @@
-# Modular Inference Benchmarker
+# Flexible Inference Benchmarker
 A modular, extensible LLM inference benchmarking framework that supports multiple benchmarking frameworks and paradigms.
 
 This benchmarking framework operates entirely external to any serving framework, and can easily be extended and modified. It is intended to be fully-featured to provide a variety of statistics and profiling modes and be easily extensible.
 
 ## Installation
 ```
-cd modular-inference-benchmark
+cd flexible-inference-benchmark
 pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `python -m modular_inference_benchmark <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `python -m flexible_inference_benchmark <args>`.
 
 After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
 
