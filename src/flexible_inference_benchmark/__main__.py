@@ -158,6 +158,10 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token")
 
+    parser.add_argument("--disable-stream", action="store_true", help="Disable stream response from API")
+
+    parser.add_argument("--cookies", default={}, help="Insert cookies in the request")
+
     parser.add_argument(
         "--dataset-name",
         type=str,
@@ -231,6 +235,8 @@ def main() -> None:
         args.disable_tqdm,
         args.https_ssl,
         not args.disable_ignore_eos,
+        not args.disable_stream,
+        args.cookies,
     )
     t = time.perf_counter()
     output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
@@ -241,6 +247,7 @@ def main() -> None:
         "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
         "inputs": requests_prompts,
         "tokenizer": args.tokenizer if args.tokenizer else args.model,
+        "stream": not args.disable_stream,
     }
     if args.output_file:
         with open(args.output_file, "w") as f:
