@@ -28,7 +28,10 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
             actual_output_lens.append(output_len)
             total_input += input_requests[i][1]
             if output_len > 1:
-                tpots.append((outputs[i]["latency"] - outputs[i]["ttft"] / (output_len - 1)))
+                if use_itl:
+                    tpots.append(sum(outputs[i]["itl"]) / len(outputs[i]["itl"]))
+                else:
+                    tpots.append((outputs[i]["latency"] - outputs[i]["ttft"]) / (output_len - 1))
             ttfts.append(outputs[i]["ttft"])
             completed += 1
         else:
