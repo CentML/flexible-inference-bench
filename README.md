@@ -56,7 +56,7 @@ The output json file in an array of objects that contain the following fields:<b
     * `error`: Error message
 * `inputs`: List of `[prompt string, input tokens, expected output tokens]`
 * `tokenizer`: Tokenizer name
-* `stream`: Indicate if the generated tokes were streamed or not
+* `stream`: Indicates if the generated tokens were streamed or not
 
 ### Data Postprocessors
 Below is a description of the data postprocessors.
