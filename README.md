@@ -37,6 +37,8 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
 | `--disable-ignore-eos` | Ignores end of sequence. |
+| `--disable-stream` | The requests are send with Stream: False. (Used for APIs without an stream option) |
+| `--cookies` | Include cookies in the request. |
 | `--config-file` | Path to configuration file. |
 
 **For ease of use we recommend passing a configuration file with all the required parameters for your use case. Examples are provided in `examples/`**
@@ -54,6 +56,7 @@ The output json file in an array of objects that contain the following fields:<b
     * `error`: Error message
 * `inputs`: List of `[prompt string, input tokens, expected output tokens]`
 * `tokenizer`: Tokenizer name
+* `stream`: Indicate if the generated tokes were streamed or not
 
 ### Data Postprocessors
 Below is a description of the data postprocessors.
