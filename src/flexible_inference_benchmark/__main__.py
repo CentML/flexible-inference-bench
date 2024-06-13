@@ -190,6 +190,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
 
+    parser.add_argument("--verbose", action="store_true", help="Print short description of each request")
+
     parser.add_argument("--config-file", default=None, help="configuration file")
 
     args = parser.parse_args()
@@ -238,8 +240,12 @@ def main() -> None:
         not args.disable_stream,
         args.cookies,
     )
+    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0]))
+    if not validate_endpoint.success:
+        logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
+        sys.exit()
     t = time.perf_counter()
-    output_list = asyncio.run(client.benchmark(requests_prompts, requests_times))
+    output_list: List[Any] = asyncio.run(client.benchmark(requests_prompts, requests_times))
     benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
     output = {
@@ -252,7 +258,12 @@ def main() -> None:
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(json.dumps(output, indent=4))  # type: ignore
-    else:
+    if args.verbose:
+        for i in range(len(output_list)):
+            print(
+                f"req-{i} has Delay: {requests_times[i]}, Latency: {output_list[i].latency}, Prompt len: {requests_prompts[i][1]}, Decode Len: {requests_prompts[i][2]}"
+            )
+    if args.debug:
         logger.debug(f"{output_list}")
 
 

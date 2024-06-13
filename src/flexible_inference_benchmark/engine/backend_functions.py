@@ -6,7 +6,6 @@ import time
 import traceback
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
-
 import aiohttp
 from tqdm.asyncio import tqdm
 
@@ -262,10 +261,20 @@ async def async_request_openai_completions(
                         output.generated_text = generated_text
                         output.success = True
                         output.latency = latency
+                    else:
+                        output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
+                # print(response.status)
                 output.success = False
                 exc_info = sys.exc_info()
-                output.error = "".join(traceback.format_exception(*exc_info))
+                output.error += "".join(traceback.format_exception(*exc_info))
     else:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
@@ -293,8 +302,15 @@ async def async_request_openai_completions(
                         output.generated_text = parsed_resp["choices"][0]["text"]
                         output.success = True
                     else:
-                        output.error = response.reason or ""
                         output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
@@ -430,6 +446,17 @@ async def async_request_cserve_debug(
                         output.generated_text = generated_text
                         output.success = True
                         output.latency = time.perf_counter() - st
+
+                    else:
+                        output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
@@ -464,8 +491,15 @@ async def async_request_cserve_debug(
                         output.generated_text = parsed_resp["text"][0]
                         output.success = True
                     else:
-                        output.error = response.reason or ""
                         output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()

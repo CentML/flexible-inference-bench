@@ -43,7 +43,6 @@ class Client:
     async def send_request(
         self, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
     ) -> Optional[RequestFuncOutput | Any]:
-        logger.debug(f"Sending request with data {data} and wait time {wait_time}")
         await asyncio.sleep(wait_time)
         return await self.request_func(data, pbar)
 
@@ -76,3 +75,19 @@ class Client:
                 for data, request_time in zip(request_func_inputs, request_times)
             ]
         )
+
+    async def validate_url_endpoint(self, request: Tuple[str, int, int]) -> Union[RequestFuncOutput, Any]:
+        data = RequestFuncInput(
+            prompt=request[0],
+            api_url=self.api_url,
+            prompt_len=request[1],
+            output_len=request[2],
+            model=self.model_id,
+            best_of=self.best_of,
+            use_beam_search=self.use_beam_search,
+            ssl=self.ssl,
+            ignore_eos=self.ignore_eos,
+            stream=self.stream,
+            cookies=self.cookies,
+        )
+        return await self.send_request(data, 0, None)
