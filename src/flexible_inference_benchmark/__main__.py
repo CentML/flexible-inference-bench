@@ -198,6 +198,7 @@ def parse_args() -> argparse.Namespace:
     if args.config_file:
         with open(args.config_file, 'r') as f:
             parser.set_defaults(**json.load(f))
+    # Reload arguments to override config file values with command line values
     args = parser.parse_args()
     if not (args.prefix_text or args.prefix_len or args.no_prefix):
         parser.error("Please provide either prefix text or prefix length or specify no prefix.")
@@ -234,16 +235,21 @@ def main() -> None:
         args.model,
         args.best_of,
         args.use_beam_search,
-        args.disable_tqdm,
+        True if args.verbose else args.disable_tqdm,
         args.https_ssl,
         not args.disable_ignore_eos,
         not args.disable_stream,
         args.cookies,
+        args.verbose,
     )
+    # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
+    client_verbose_value = client.verbose
+    client.verbose = False
     validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0]))
     if not validate_endpoint.success:
         logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
         sys.exit()
+    client.verbose = client_verbose_value
     t = time.perf_counter()
     output_list: List[Any] = asyncio.run(client.benchmark(requests_prompts, requests_times))
     benchmark_time = time.perf_counter() - t
@@ -258,11 +264,6 @@ def main() -> None:
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(json.dumps(output, indent=4))  # type: ignore
-    if args.verbose:
-        for i in range(len(output_list)):
-            print(
-                f"req-{i} has Delay: {requests_times[i]}, Latency: {output_list[i].latency}, Prompt len: {requests_prompts[i][1]}, Decode Len: {requests_prompts[i][2]}"
-            )
     if args.debug:
         logger.debug(f"{output_list}")
 

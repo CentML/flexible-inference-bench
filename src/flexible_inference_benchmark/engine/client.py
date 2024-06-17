@@ -24,6 +24,7 @@ class Client:
         ignore_eos: bool,
         stream: bool,
         cookies: Dict[str, str],
+        verbose: bool,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -35,16 +36,19 @@ class Client:
         self.ignore_eos = ignore_eos
         self.stream = stream
         self.cookies = cookies
+        self.verbose = verbose
 
     @property
-    def request_func(self) -> Callable[[RequestFuncInput, Any | None], Coroutine[Any, Any, RequestFuncOutput]]:
+    def request_func(
+        self,
+    ) -> Callable[[int, RequestFuncInput, Any, bool, float], Coroutine[Any, Any, RequestFuncOutput]]:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
     async def send_request(
-        self, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
+        self, idx: int, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
     ) -> Optional[RequestFuncOutput | Any]:
         await asyncio.sleep(wait_time)
-        return await self.request_func(data, pbar)
+        return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
         self, data: List[Tuple[str, int, int]], request_times: List[float | int]
@@ -71,8 +75,8 @@ class Client:
 
         return await asyncio.gather(
             *[
-                self.send_request(data, request_time, pbar)
-                for data, request_time in zip(request_func_inputs, request_times)
+                self.send_request(idx, data, request_time, pbar)
+                for idx, (data, request_time) in enumerate(zip(request_func_inputs, request_times))
             ]
         )
 
@@ -90,4 +94,4 @@ class Client:
             stream=self.stream,
             cookies=self.cookies,
         )
-        return await self.send_request(data, 0, None)
+        return await self.send_request(0, data, 0, None)
