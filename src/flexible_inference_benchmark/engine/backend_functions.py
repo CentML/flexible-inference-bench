@@ -6,11 +6,16 @@ import time
 import traceback
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
-
 import aiohttp
 from tqdm.asyncio import tqdm
 
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
+
+
+class bcolors:
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    ENDC = '\033[0m'
 
 
 class RequestFuncInput(BaseModel):
@@ -37,7 +42,9 @@ class RequestFuncOutput(BaseModel):
     error: str = ""
 
 
-async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None) -> RequestFuncOutput:
+async def async_request_tgi(
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
+) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("generate_stream")
 
@@ -57,6 +64,8 @@ async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional
         ttft = 0.0
         st = time.perf_counter()
         most_recent_timestamp = st
+        if verbose:
+            print_verbose(idx, request_func_input, st, 0, 0, True)
         try:
             async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
                 if response.status == 200:
@@ -83,6 +92,14 @@ async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional
                     output.latency = most_recent_timestamp - st
                     output.success = True
                     output.generated_text = data["generated_text"]
+
+                    if verbose:
+                        print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "connection error, please verify the server is running"
+
         except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
@@ -93,7 +110,9 @@ async def async_request_tgi(request_func_input: RequestFuncInput, pbar: Optional
         return output
 
 
-async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None) -> RequestFuncOutput:
+async def async_request_trt_llm(
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
+) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("generate_stream")
 
@@ -114,6 +133,8 @@ async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Opti
         ttft = 0.0
         st = time.perf_counter()
         most_recent_timestamp = st
+        if verbose:
+            print_verbose(idx, request_func_input, most_recent_timestamp, 0, 0, True)
         try:
             async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
                 if response.status == 200:
@@ -140,10 +161,17 @@ async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Opti
 
                     output.latency = most_recent_timestamp - st
                     output.success = True
+                    if verbose:
+                        print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
 
                 else:
                     output.error = response.reason or ""
                     output.success = False
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "connection error, please verify the server is running"
+
         except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
@@ -155,7 +183,7 @@ async def async_request_trt_llm(request_func_input: RequestFuncInput, pbar: Opti
 
 
 async def async_request_deepspeed_mii(
-    request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert request_func_input.best_of == 1
@@ -176,18 +204,28 @@ async def async_request_deepspeed_mii(
         output.ttft = 0
 
         st = time.perf_counter()
+        if verbose:
+            print_verbose(idx, request_func_input, st, 0, 0, True)
         try:
             async with session.post(
                 url=request_func_input.api_url, json=payload, verify_ssl=request_func_input.ssl
             ) as response:
                 if response.status == 200:
                     parsed_resp = await response.json()
-                    output.latency = time.perf_counter() - st
+                    rcv_time = time.perf_counter()
+                    output.latency = rcv_time - st
                     output.generated_text = parsed_resp["text"][0]
                     output.success = True
+                    if verbose:
+                        print_verbose(idx, request_func_input, 0, rcv_time, output.latency, False)
                 else:
                     output.error = response.reason or ""
                     output.success = False
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "connection error, please verify the server is running"
+
         except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
@@ -199,7 +237,7 @@ async def async_request_deepspeed_mii(
 
 
 async def async_request_openai_completions(
-    request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/completions"), "OpenAI Completions API URL must end with 'v1/completions'."
@@ -226,6 +264,8 @@ async def async_request_openai_completions(
             st = time.perf_counter()
             most_recent_timestamp = st
             latency = 0.0
+            if verbose:
+                print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
                     url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
@@ -262,10 +302,23 @@ async def async_request_openai_completions(
                         output.generated_text = generated_text
                         output.success = True
                         output.latency = latency
+
+                        if verbose:
+                            print_verbose(idx, request_func_input, 0, most_recent_timestamp, latency, False)
+                    else:
+                        output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
+                # print(response.status)
                 output.success = False
                 exc_info = sys.exc_info()
-                output.error = "".join(traceback.format_exception(*exc_info))
+                output.error += "".join(traceback.format_exception(*exc_info))
     else:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
@@ -283,18 +336,30 @@ async def async_request_openai_completions(
             output.ttft = 0
 
             st = time.perf_counter()
+            if verbose:
+                print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
                     url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         parsed_resp = await response.json()
-                        output.latency = time.perf_counter() - st
+                        rcv_time = time.perf_counter()
+                        output.latency = rcv_time - st
                         output.generated_text = parsed_resp["choices"][0]["text"]
                         output.success = True
+                        if verbose:
+                            print_verbose(idx, request_func_input, 0, rcv_time, output.latency, False)
                     else:
-                        output.error = response.reason or ""
                         output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
@@ -305,7 +370,7 @@ async def async_request_openai_completions(
 
 
 async def async_request_openai_chat_completions(
-    request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith(
@@ -331,6 +396,8 @@ async def async_request_openai_chat_completions(
         ttft = 0.0
         st = time.perf_counter()
         most_recent_timestamp = st
+        if verbose:
+            print_verbose(idx, request_func_input, st, 0, 0, True)
         try:
             async with session.post(
                 url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
@@ -366,9 +433,17 @@ async def async_request_openai_chat_completions(
                     output.generated_text = generated_text
                     output.success = True
                     output.latency = latency
+
+                    if verbose:
+                        print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
                 else:
                     output.error = response.reason or ""
                     output.success = False
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "connection error, please verify the server is running"
+
         except Exception:  # pylint: disable=broad-except
             output.success = False
             exc_info = sys.exc_info()
@@ -380,7 +455,7 @@ async def async_request_openai_chat_completions(
 
 
 async def async_request_cserve_debug(
-    request_func_input: RequestFuncInput, pbar: Optional[tqdm] = None
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/generate"), "CServe Completions API URL must end with 'v1/generate'."
@@ -403,6 +478,8 @@ async def async_request_cserve_debug(
             ttft = 0.0
             st = time.perf_counter()
             most_recent_timestamp = st
+            if verbose:
+                print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
                     url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
@@ -430,6 +507,19 @@ async def async_request_cserve_debug(
                         output.generated_text = generated_text
                         output.success = True
                         output.latency = time.perf_counter() - st
+
+                        if verbose:
+                            print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
+                    else:
+                        output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
@@ -454,18 +544,30 @@ async def async_request_cserve_debug(
             output.ttft = 0
 
             st = time.perf_counter()
+            if verbose:
+                print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
                     url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         parsed_resp = await response.json()
-                        output.latency = time.perf_counter() - st
+                        rcv_time = time.perf_counter()
+                        output.latency = rcv_time - st
                         output.generated_text = parsed_resp["text"][0]
                         output.success = True
+                        if verbose:
+                            print_verbose(idx, request_func_input, 0, rcv_time, output.latency, False)
                     else:
-                        output.error = response.reason or ""
                         output.success = False
+                        output.error = (
+                            f"There was an error reaching the endpoint. Error code: {response.status} {response.reason}"
+                        )
+
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
@@ -481,6 +583,26 @@ def remove_prefix(text: str, prefix: str) -> str:
     if text.startswith(prefix):
         return text[len(prefix) :]
     return text
+
+
+def print_verbose(
+    idx: int, request_func_input: RequestFuncInput, send_time: float, rcv_time: float, latency: float, sending: bool
+) -> None:
+    if sending:
+        print(
+            f"{bcolors.OKBLUE}Sending request with id {idx}",
+            f"prompt len: {request_func_input.prompt_len}",
+            f"decode len: {request_func_input.output_len}",
+            f"at time: {send_time}{bcolors.ENDC}",
+        )
+    else:
+        print(
+            f"{bcolors.OKGREEN}Response for req {idx}",
+            f"with prompt len: {request_func_input.prompt_len}",
+            f"with decode len: {request_func_input.output_len}",
+            f"has been received at time: {rcv_time}",
+            f"with delay: {latency}",
+        )
 
 
 ASYNC_REQUEST_FUNCS = {
