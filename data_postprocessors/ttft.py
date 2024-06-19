@@ -1,7 +1,8 @@
 import argparse
-import json 
+import json
 import matplotlib.pyplot as plt
 import random
+
 
 def color_scheme_generator(num_colors):
     res = []
@@ -9,19 +10,19 @@ def color_scheme_generator(num_colors):
         color = random.randrange(0, 2**24)
         hex_color = hex(color)
         padding = 6 - len(hex_color[2:])
-        str_color = "#" + hex_color[2:] + "0"*padding
+        str_color = "#" + hex_color[2:] + "0" * padding
         res.append(str_color)
-    
-    return res 
+
+    return res
+
 
 def generate_plot(name, data, color, axis):
     axis.set_ylabel('time (sec)')
-    axis.hist(data, orientation="horizontal", bins=len(data)//2, fill=False, edgecolor=color, label=name)
+    axis.hist(data, orientation="horizontal", bins=len(data) // 2, fill=False, edgecolor=color, label=name)
     axis.legend()
 
     ax2 = axis.twiny()
     ax2.ecdf(data, orientation="horizontal", color=color)
-
 
 
 def plot_ttft(files, color_scheme):
@@ -30,10 +31,11 @@ def plot_ttft(files, color_scheme):
         with open(file, "r") as f:
             data = json.load(f)
         ttft_arr = [item["ttft"] for item in data["outputs"]]
-        generate_plot(data["backend"], ttft_arr,color_scheme[i], ax1)
+        generate_plot(data["backend"], ttft_arr, color_scheme[i], ax1)
 
-    fig.tight_layout() 
+    fig.tight_layout()
     plt.savefig("ttft.pdf")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
