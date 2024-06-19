@@ -7,7 +7,7 @@ on:
 
 jobs:
   format-and-lint:
-    if: github.repository == 'CentML/modular-inference-bench'
+    if: github.repository == 'CentML/flexible-inference-bench'
     concurrency:
       group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true

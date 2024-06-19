@@ -255,6 +255,7 @@ def main() -> None:
     benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
     output = {
+        "backend": args.backend,
         "time": benchmark_time,
         "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
         "inputs": requests_prompts,
