@@ -213,7 +213,7 @@ def main() -> None:
     args = parse_args()
     configure_logging(args)
     logger.info(f"Arguments: {args}")
-    if args.seed:
+    if args.seed is not None:
         np.random.seed(args.seed)
         random.seed(args.seed)
     requests_times = generate_request_times(args)
