@@ -180,7 +180,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
     parser.add_argument(
-        "--output-file", type=str, default='output-file.json', required=True, help="Output json file to save the results."
+        "--output-file",
+        type=str,
+        default='output-file.json',
+        required=True,
+        help="Output json file to save the results.",
     )
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
