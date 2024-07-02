@@ -106,15 +106,10 @@ def parse_args() -> argparse.Namespace:
         help="Backend inference engine.",
     )
 
-    url_group = parser.add_mutually_exclusive_group()
-
-    url_group.add_argument(
+    parser.add_argument(
         "--base-url", type=str, default=None, help="Server or API base url if not using http host and port."
     )
 
-    url_group.add_argument(
-        "--host-port", type=str, default="localhost:8080", help="Host and port for the server in host:port format"
-    )
     parser.add_argument(
         "--https-ssl", default=True, help="whether to check for ssl certificate for https endpoints, default is True"
     )
@@ -185,7 +180,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
     parser.add_argument(
-        "--output-file", type=str, default='output-file.json', help="Output json file to save the results."
+        "--output-file", type=str, default='output-file.json', required=True, help="Output json file to save the results."
     )
 
     parser.add_argument("--debug", action="store_true", help="Log debug messages")
@@ -223,11 +218,7 @@ def main() -> None:
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
 
-    if args.base_url is None:
-        assert args.host_port, "Host and port must be provided if base url is not provided."
-        args.api_url = f"http://{args.host_port}{args.endpoint}"
-    else:
-        args.api_url = f"{args.base_url}{args.endpoint}"
+    args.api_url = f"{args.base_url}{args.endpoint}"
 
     client = Client(
         args.backend,
