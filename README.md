@@ -19,8 +19,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
 | `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
-| `--base-url` | Server or API base url, if not using http host and port. |
-| `--host_port` | Host and port for the server in **`host:port`** format. |
+| `--base-url` | Server or API base url, without endpoint |
 | `--endpoint` | API endpoint. |
 | one of <br> `--num-of-req` **or** <br> `--max-time-for-reqs` | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
 | `--request-distribution` | Distribution for sending requests: <br> **eg:** `exponential 5` (request will follow an exponential distribution with an average time between requests of **5 seconds**) <br> options: <br> `poisson rate` <br> `uniform min_val max_val` <br> `normal mean std`. | 

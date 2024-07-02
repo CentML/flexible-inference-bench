@@ -1,6 +1,6 @@
 { 
     "backend": "cserve",
-    "host_port": "localhost:8093",
+    "base_url": "http://localhost:8093",
     "endpoint": "/openai/v1/completions",
     "dataset_name": "random",
     "input_token_distribution": ["normal", 20, 10],
