@@ -16,3 +16,4 @@ pytest-timeout
 aiohttp
 openai
 httpx
+vllm

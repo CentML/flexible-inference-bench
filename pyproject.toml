@@ -27,4 +27,4 @@ classifiers = [
 package-dir = {"" = "src"}
 
 [project.scripts]
-inference-benchmark = "flexible_inference_benchmark.__main__:main"
+inference-benchmark = "flexible_inference_benchmark.main:main"
