@@ -5,7 +5,10 @@ from flexible_inference_benchmark.main import generate_request_times, generate_p
 from flexible_inference_benchmark.engine.client import Client
 
 
-def test_stream_disable(vllm_server, args_config):
+def test_backend_function(vllm_server, args_config):
+    ###############################################################
+    ## STREAM DISABLED
+    ###############################################################
     args_config["base_url"] = f"http://localhost:{vllm_server[1]}"
     args = argparse.Namespace(**args_config)
 
@@ -53,8 +56,10 @@ def test_stream_disable(vllm_server, args_config):
             assert item["ttft"] == 0.0
             assert item["latency"] > 0.0
 
+    #########################################################################
+    ##  STREAM ENABLED
+    #########################################################################
 
-def test_stream_enable(vllm_server, args_config):
     args_config["base_url"] = f"http://localhost:{vllm_server[1]}"
     args_config["disable_stream"] = False
     args = argparse.Namespace(**args_config)
