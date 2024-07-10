@@ -183,7 +183,7 @@ def parse_args() -> argparse.Namespace:
         "--output-file",
         type=str,
         default='output-file.json',
-        required=True,
+        required=False,
         help="Output json file to save the results.",
     )
 
