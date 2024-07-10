@@ -6,7 +6,8 @@ on:
 jobs:
   unit-tests:
     if : github.repository == 'CentML/flexible-inference-bench'
-    runs-on: [arc-a100-80g-abc123]
+    runs-on:
+      group: arc-a100-80
     strategy:
       matrix:
         python-version: ["3.10"]
