@@ -13,6 +13,8 @@ def vllm_server():
             "python",
             "-m",
             "vllm.entrypoints.openai.api_server",
+            "--gpu-memory-utilization",
+            "0.3",
             "--model",
             "gpt2",
             "--port",
