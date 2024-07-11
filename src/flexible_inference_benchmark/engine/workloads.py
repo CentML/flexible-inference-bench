@@ -27,7 +27,7 @@ class Story(BaseWorkload):
 
 
 class Rag(BaseWorkload):
-    input_token_distribution: List[Union[str, int]] = ['uniform', 4000, 2000]
+    input_token_distribution: List[Union[str, int]] = ['uniform', 4000, 200]
     output_token_distribution: List[Union[str, int]] = ['normal', 1000, 5]
 
 
