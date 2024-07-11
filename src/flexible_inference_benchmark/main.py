@@ -278,5 +278,6 @@ def main() -> None:
     if args.debug:
         logger.debug(f"{output_list}")
 
+
 if __name__ == '__main__':
     main()
