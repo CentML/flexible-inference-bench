@@ -93,6 +93,12 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
     return data
 
 
+def send_requests(
+    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[int | float]
+) -> List[Any]:
+    return asyncio.run(client.benchmark(requests_prompts, requests_times))
+
+
 def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
@@ -260,7 +266,7 @@ def main() -> None:
         sys.exit()
     client.verbose = client_verbose_value
     t = time.perf_counter()
-    output_list: List[Any] = asyncio.run(client.benchmark(requests_prompts, requests_times))
+    output_list: List[Any] = send_requests(client, requests_prompts, requests_times)
     benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
     output = {
