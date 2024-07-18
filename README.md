@@ -10,7 +10,7 @@ pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `python -m flexible_inference_benchmark <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `inference-benchmark <args>`.
 
 After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
 
@@ -44,6 +44,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 
 ### Output
 The output json file in an array of objects that contain the following fields:<br>
+* `backend`: backend used
 * `time`: Total time
 * `outputs`: 
     * `text`: Generated text
@@ -55,7 +56,7 @@ The output json file in an array of objects that contain the following fields:<b
     * `error`: Error message
 * `inputs`: List of `[prompt string, input tokens, expected output tokens]`
 * `tokenizer`: Tokenizer name
-* `stream`: Indicates if the generated tokens were streamed or not
+* `stream`: Indicates if we used the stream argument or not
 
 ### Data Postprocessors
 Below is a description of the data postprocessors.
@@ -98,3 +99,52 @@ Returns a plot of inter-token latencies for a specific request. Takes the follow
 | `--datapath` | Path to the output json file produced. |
 | `--output` | Path to save figure supported by matplotlib. |
 | `--request-num` | Which request to produce ITL plot for. |
+
+#### `ttft.py`
+
+Generates a simple CDF plot of **time to first token** requests. You can pass a single file or  a list of generated files from the benchmark to make a comparisson <br>
+
+| argument | description |
+| --- | --- |
+| `--files` | file(s) to generate the plot
+
+## `Example`
+
+Let's take vllm as the backend for our benchmark.
+You can install vllm with the command:<br>
+`pip install vllm`
+
+We will use gpt2 as the model<br>
+`python -m vllm.entrypoints.openai.api_server --model gpt2`
+
+Once the backend is up and running we can go to the examples folder and run the inference benchmark using vllm_args.json file <br>
+`cd examples`<br>
+`inference-benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
+
+then you can go to the folder data_postprocessors and see the performance with performance.py<br>
+`cd ../data_postprocessors` <br>
+`python performance.py --datapath ../examples/vllm-benchmark.json` <br>
+
+```
+============ Serving Benchmark Result ============
+Successful requests:                     20        
+Benchmark duration (s):                  4.15      
+Total input tokens:                      3836      
+Total generated tokens:                  4000      
+Request throughput (req/s):              4.82      
+Input token throughput (tok/s):          925.20    
+Output token throughput (tok/s):         964.76    
+---------------Time to First Token----------------
+Mean TTFT (ms):                          19.91     
+Median TTFT (ms):                        22.11     
+P99 TTFT (ms):                           28.55     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          6.73      
+Median TPOT (ms):                        7.96      
+P99 TPOT (ms):                           8.41      
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           6.73      
+Median ITL (ms):                         7.40      
+P99 ITL (ms):                            20.70     
+==================================================
+```

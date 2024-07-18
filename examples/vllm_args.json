@@ -1,6 +1,6 @@
 { 
     "backend": "vllm",
-    "base_url": "http://localhost:8093",
+    "base_url": "http://localhost:8000",
     "endpoint": "/v1/completions",
     "dataset_name": "random",
     "input_token_distribution": ["normal", 200, 10],
@@ -9,5 +9,5 @@
     "num_of_req": 20,
     "model": "gpt2",
     "tokenizer": "gpt2",
-    "prefix_len": 5
+    "no_prefix": true
 }
