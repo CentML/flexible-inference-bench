@@ -13,6 +13,7 @@ from flexible_inference_benchmark.utils.utils import configure_logging
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
+from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,16 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--workload-type",
+        type=str,
+        default=None,
+        choices=list(WORKLOADS_TYPES.keys()),
+        help="choose a workload type, this will overwrite some arguments",
+    )
+
+    url_group = parser.add_mutually_exclusive_group()
+
+    url_group.add_argument(
         "--base-url", type=str, default=None, help="Server or API base url if not using http host and port."
     )
 
@@ -217,6 +228,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     configure_logging(args)
+    if args.workload_type:
+        workload_type = WORKLOADS_TYPES[args.workload_type]()
+        workload_type.overwrite_args(args)
     logger.info(f"Arguments: {args}")
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -263,6 +277,7 @@ def main() -> None:
         "tokenizer": args.tokenizer if args.tokenizer else args.model,
         "stream": not args.disable_stream,
     }
+
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(json.dumps(output, indent=4))  # type: ignore
