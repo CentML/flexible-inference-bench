@@ -122,10 +122,11 @@ async def async_request_trt_llm(
         payload = {
             "accumulate_tokens": True,
             "text_input": request_func_input.prompt,
-            "temperature": 0.0,
+            "temperature": 0.01, # does not support 0.0 as of version 24.06 
             "top_p": 1.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
+            "ignore_eos": request_func_input.ignore_eos,
         }
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
