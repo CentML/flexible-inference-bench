@@ -18,7 +18,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | argument | description |
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
-| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. |
+| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. <br> **For tensorrt-llm temperature is set to 0.01 since NGC container >= 24.06 does not support 0.0** |
 | `--base-url` | Server or API base url, without endpoint |
 | `--endpoint` | API endpoint. |
 | one of <br> `--num-of-req` **or** <br> `--max-time-for-reqs` | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
@@ -35,7 +35,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | `--use-beam-search` | Use beam search for completions. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
-| `--disable-ignore-eos` | Ignores end of sequence. |
+| `--disable-ignore-eos` | Ignores end of sequence.<br> **Note:** Not valid argument for TensorRT-LLM |
 | `--disable-stream` | The requests are send with Stream: False. (Used for APIs without an stream option) |
 | `--cookies` | Include cookies in the request. |
 | `--config-file` | Path to configuration file. |
