@@ -35,7 +35,7 @@ After you get your output (using `--output-file`), you can invoke one of the dat
 | `--use-beam-search` | Use beam search for completions. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
-| `--disable-ignore-eos` | Ignores end of sequence. |
+| `--disable-ignore-eos` | Ignores end of sequence.<br> **Note:** Not valid argument for TensorRT-LLM |
 | `--disable-stream` | The requests are send with Stream: False. (Used for APIs without an stream option) |
 | `--cookies` | Include cookies in the request. |
 | `--config-file` | Path to configuration file. |

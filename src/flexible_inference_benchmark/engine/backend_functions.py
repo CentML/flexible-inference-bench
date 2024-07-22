@@ -126,7 +126,6 @@ async def async_request_trt_llm(
             "top_p": 1.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
-            "ignore_eos": request_func_input.ignore_eos,
         }
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
