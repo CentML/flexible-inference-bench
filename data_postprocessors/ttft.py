@@ -21,8 +21,7 @@ def generate_plot(name, data, color, axis):
     axis.set_xlabel('CDF')
     axis.hist(data, orientation="horizontal", bins=len(data) // 2, fill=False, edgecolor=color, label=name)
     # axis.legend()
-    axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
-          fancybox=True, shadow=True, ncol=5)
+    axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
 
     ax2 = axis.twiny()
     ax2.ecdf(data, orientation="horizontal", color=color)
