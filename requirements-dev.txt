@@ -1,0 +1,19 @@
+build
+
+# formatter
+black==24.3.0
+
+# linter
+pylint==2.13.9
+
+# mypy
+mypy==1.8.0
+
+# tests
+pytest
+pytest-asyncio
+pytest-timeout
+aiohttp
+openai
+httpx
+vllm
