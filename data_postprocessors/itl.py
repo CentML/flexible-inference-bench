@@ -21,9 +21,9 @@ def plot_itl(data, idx, output):
     plt.xlabel("Token")
     plt.ylabel("Inter-Token Latency (s)")
     plt.scatter(list(range(len(itls))), itls)
-    plt.show()
     if output:
         plt.savefig(output)
+    plt.show()
 
 
 def main():
