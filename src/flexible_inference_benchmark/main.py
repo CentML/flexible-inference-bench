@@ -24,7 +24,7 @@ def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
     return DISTRIBUTION_CLASSES[dist_type](*dist_args)
 
 
-def generate_request_times(args: argparse.Namespace) -> List[int | float]:
+def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
     if args.num_of_req:
         size = args.num_of_req
         dist = select_distribution(args.request_distribution)
@@ -94,7 +94,7 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
 
 
 def send_requests(
-    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[int | float]
+    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[Union[int, float]]
 ) -> List[Any]:
     return asyncio.run(client.benchmark(requests_prompts, requests_times))
 
