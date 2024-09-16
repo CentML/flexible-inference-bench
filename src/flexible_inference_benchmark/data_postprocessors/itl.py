@@ -7,12 +7,11 @@ import argparse
 import matplotlib.pyplot as plt
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--datapath", type=str, required=True, help="Path to the data file")
-    parser.add_argument("--output", type=str, required=False, help="Path to save the plot")
-    parser.add_argument('--request-num', type=int, default=0, help='Request number to plot')
-    return parser.parse_args()
+def add_itl_parser(subparsers: argparse._SubParsersAction):
+    itl_parser = subparsers.add_parser("generate-itl-plot")
+    itl_parser.add_argument("--datapath", type=str, required=True, help="Path to the data file")
+    itl_parser.add_argument("--output", type=str, required=False, help="Path to save the plot")
+    itl_parser.add_argument('--request-num', type=int, default=0, help='Request number to plot')
 
 
 def plot_itl(data, idx, output):
@@ -26,12 +25,7 @@ def plot_itl(data, idx, output):
     plt.show()
 
 
-def main():
-    args = parse_args()
+def run(args: argparse.Namespace):
     with open(args.datapath, 'r') as f:
         data = json.load(f)
     plot_itl(data, args.request_num, args.output)
-
-
-if __name__ == "__main__":
-    main()

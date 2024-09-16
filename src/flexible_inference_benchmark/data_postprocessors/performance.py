@@ -4,15 +4,13 @@ Gets the performance based on vLLM performance with minimal error checking and t
 
 import json
 import argparse
-
 import numpy as np
 from transformers import AutoTokenizer
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--datapath", type=str, required=True, help="Path to the data file")
-    return parser.parse_args()
+def add_performance_parser(subparsers: argparse._SubParsersAction) -> None:
+    performance_parser = subparsers.add_parser('analyse')
+    performance_parser.add_argument("--datapath", type=str, required=True, help='Path to the json file')
 
 
 def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream):
@@ -74,13 +72,8 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
         print("=" * 50)
 
 
-def main():
-    args = parse_args()
+def run(args: argparse.Namespace):
     with open(args.datapath, 'r') as f:
         data = json.load(f)
     tokenizer = AutoTokenizer.from_pretrained(data["tokenizer"])
     calculate_metrics(data["inputs"], data["outputs"], data["time"], tokenizer, data["stream"])
-
-
-if __name__ == "__main__":
-    main()

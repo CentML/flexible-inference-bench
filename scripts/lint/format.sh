@@ -13,5 +13,4 @@ python -m black \
     --exclude=".*pb2.*" \
     --line-length 120 \
     $additional_opts \
-    ../../src/flexible_inference_benchmark \
-    ../../data_postprocessors 
+    ../../src/flexible_inference_benchmark 

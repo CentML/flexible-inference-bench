@@ -14,7 +14,8 @@ dependencies = [
     "transformers",
     "sentencepiece",
     "aiohttp",
-    "pydantic"
+    "pydantic",
+    "matplotlib"
 ]
 
 classifiers = [
@@ -28,4 +29,4 @@ classifiers = [
 package-dir = {"" = "src"}
 
 [project.scripts]
-inference-benchmark = "flexible_inference_benchmark.main:main"
+fib = "flexible_inference_benchmark.main:main"
