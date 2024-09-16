@@ -1,3 +1,7 @@
+"""
+Simple example of a data postprocessor script with minimal error checking and typing that shows a plot of TTFT.
+"""
+
 import argparse
 import json
 import matplotlib.pyplot as plt
@@ -17,14 +21,13 @@ def color_scheme_generator(num_colors):
 
 
 def generate_plot(name, data, color, axis):
-    axis.set_ylabel('time (sec)')
+    axis.ecdf(data, orientation="horizontal", color=color)
     axis.set_xlabel('CDF')
-    axis.hist(data, orientation="horizontal", bins=len(data) // 2, fill=False, edgecolor=color, label=name)
-    # axis.legend()
-    axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
+    axis.set_ylabel('time (sec)')
 
     ax2 = axis.twiny()
-    ax2.ecdf(data, orientation="horizontal", color=color)
+    ax2.hist(data, orientation="horizontal", bins=len(data) // 2, fill=False, edgecolor=color, label=name)
+    ax2.set_xticks([])
 
 
 def plot_ttft(files, color_scheme):
@@ -36,14 +39,16 @@ def plot_ttft(files, color_scheme):
         generate_plot(data["backend"], ttft_arr, color_scheme[i], ax1)
 
     fig.tight_layout()
-    plt.title('TTFS')
+    plt.title('TTFT')
     plt.tight_layout()
     plt.savefig("ttft.pdf")
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--files", nargs="+", help="list of json files")
-    args = parser.parse_args()
+def add_ttft_parser(subparsers: argparse._SubParsersAction):
+    ttft_parser = subparsers.add_parser("generate-ttft-plot")
+    ttft_parser.add_argument("--files", nargs="+", help="list of json files")
+
+
+def run(args: argparse.Namespace):
     color_scheme = color_scheme_generator(len(args.files))
     plot_ttft(args.files, color_scheme)

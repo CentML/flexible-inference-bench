@@ -14,6 +14,9 @@ from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
 from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
+from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser
+from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
+from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +102,13 @@ def send_requests(
     return asyncio.run(client.benchmark(requests_prompts, requests_times))
 
 
-def parse_args() -> argparse.Namespace:
+def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore [type-arg]
 
-    parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
+    benchmark_parser = subparsers.add_parser('benchmark')
 
-    parser.add_argument("--seed", type=int, default=None, help="seed for reproducibility")
+    benchmark_parser.add_argument("--seed", type=int, default=None, help="seed for reproducibility")
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--backend",
         type=str,
         default='cserve',
@@ -113,7 +116,7 @@ def parse_args() -> argparse.Namespace:
         help="Backend inference engine.",
     )
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--workload-type",
         type=str,
         default=None,
@@ -121,46 +124,46 @@ def parse_args() -> argparse.Namespace:
         help="choose a workload type, this will overwrite some arguments",
     )
 
-    url_group = parser.add_mutually_exclusive_group()
+    url_group = benchmark_parser.add_mutually_exclusive_group()
 
     url_group.add_argument(
         "--base-url", type=str, default=None, help="Server or API base url if not using http host and port."
     )
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--https-ssl", default=True, help="whether to check for ssl certificate for https endpoints, default is True"
     )
 
-    parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
+    benchmark_parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
 
-    req_group = parser.add_mutually_exclusive_group()
+    req_group = benchmark_parser.add_mutually_exclusive_group()
 
     req_group.add_argument("--num-of-req", type=int, default=None, help="Total number of request.")
 
     req_group.add_argument("--max-time-for-reqs", type=int, default=None, help="Max time for requests in seconds.")
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--request-distribution",
         nargs="*",
         default=["exponential", 1],
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--input-token-distribution",
         nargs="*",
         default=["uniform", 0, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--output-token-distribution",
         nargs="*",
         default=["uniform", 0, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
-    prefix_group = parser.add_mutually_exclusive_group()
+    prefix_group = benchmark_parser.add_mutually_exclusive_group()
 
     prefix_group.add_argument("--prefix-text", type=str, default=None, help="Text to use as prefix for all requests.")
 
@@ -168,13 +171,13 @@ def parse_args() -> argparse.Namespace:
 
     prefix_group.add_argument('--no-prefix', action='store_true', help='No prefix for requests.')
 
-    parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token")
+    benchmark_parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token")
 
-    parser.add_argument("--disable-stream", action="store_true", help="Disable stream response from API")
+    benchmark_parser.add_argument("--disable-stream", action="store_true", help="Disable stream response from API")
 
-    parser.add_argument("--cookies", default={}, help="Insert cookies in the request")
+    benchmark_parser.add_argument("--cookies", default={}, help="Insert cookies in the request")
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--dataset-name",
         type=str,
         default="random",
@@ -182,21 +185,21 @@ def parse_args() -> argparse.Namespace:
         help="Name of the dataset to benchmark on.",
     )
 
-    parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
+    benchmark_parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
 
-    parser.add_argument("--model", type=str, help="Name of the model.")
+    benchmark_parser.add_argument("--model", type=str, help="Name of the model.")
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
     )
 
-    parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
+    benchmark_parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
-    parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
+    benchmark_parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
 
-    parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
+    benchmark_parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
-    parser.add_argument(
+    benchmark_parser.add_argument(
         "--output-file",
         type=str,
         default='output-file.json',
@@ -204,29 +207,43 @@ def parse_args() -> argparse.Namespace:
         help="Output json file to save the results.",
     )
 
-    parser.add_argument("--debug", action="store_true", help="Log debug messages")
+    benchmark_parser.add_argument("--debug", action="store_true", help="Log debug messages")
 
-    parser.add_argument("--verbose", action="store_true", help="Print short description of each request")
+    benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request")
 
-    parser.add_argument("--config-file", default=None, help="configuration file")
+    benchmark_parser.add_argument("--config-file", default=None, help="configuration file")
+
+
+def parse_args() -> argparse.Namespace:
+
+    parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
+
+    subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand')
+
+    add_performance_parser(subparsers)
+    add_benchmark_subparser(subparsers)
+    add_ttft_parser(subparsers)
+    add_itl_parser(subparsers)
 
     args = parser.parse_args()
-    if args.config_file:
-        with open(args.config_file, 'r') as f:
-            parser.set_defaults(**json.load(f))
-    # Reload arguments to override config file values with command line values
-    args = parser.parse_args()
-    if not (args.prefix_text or args.prefix_len or args.no_prefix):
-        parser.error("Please provide either prefix text or prefix length or specify no prefix.")
-    if not (args.num_of_req or args.max_time_for_reqs):
-        parser.error("Please provide either number of requests or max time for requests.")
-    if not args.model:
-        parser.error("Please provide the model name.")
+    if args.subcommand == 'benchmark':
+        if args.config_file:
+            with open(args.config_file, 'r') as f:
+                file_data = json.load(f)
+            for k, v in file_data.items():
+                # Reload arguments to override config file values with command line values
+                setattr(args, k, v)
+        if not (args.prefix_text or args.prefix_len or args.no_prefix):
+            parser.error("Please provide either prefix text or prefix length or specify no prefix.")
+        if not (args.num_of_req or args.max_time_for_reqs):
+            parser.error("Please provide either number of requests or max time for requests.")
+        if not args.model:
+            parser.error("Please provide the model name.")
+
     return args
 
 
-def main() -> None:
-    args = parse_args()
+def run_main(args: argparse.Namespace) -> None:
     configure_logging(args)
     if args.workload_type:
         workload_type = WORKLOADS_TYPES[args.workload_type]()
@@ -283,6 +300,24 @@ def main() -> None:
             f.write(json.dumps(output, indent=4))  # type: ignore
     if args.debug:
         logger.debug(f"{output_list}")
+
+
+def main() -> None:
+    args = parse_args()
+    if args.subcommand == "analyse":
+        from flexible_inference_benchmark.data_postprocessors.performance import run
+
+        run(args)
+    elif args.subcommand == "generate-ttft-plot":
+        from flexible_inference_benchmark.data_postprocessors.ttft import run
+
+        run(args)
+    elif args.subcommand == "generate-itl-plot":
+        from flexible_inference_benchmark.data_postprocessors.itl import run
+
+        run(args)
+    else:
+        run_main(args)
 
 
 if __name__ == '__main__':
