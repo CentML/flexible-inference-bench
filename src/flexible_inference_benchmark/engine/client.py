@@ -46,12 +46,12 @@ class Client:
 
     async def send_request(
         self, idx: int, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
-    ) -> Optional[RequestFuncOutput | Any]:
+    ) -> Optional[Union[RequestFuncOutput, Any]]:
         await asyncio.sleep(wait_time)
         return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
-        self, data: List[Tuple[str, int, int]], request_times: List[float | int]
+        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
         pbar = None if self.disable_tqdm else tqdm(total=len(data))
