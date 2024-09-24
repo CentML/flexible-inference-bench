@@ -10,7 +10,7 @@ pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `inference-benchmark <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `fib <args>`.
 
 After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
 
@@ -59,28 +59,32 @@ The output json file in an array of objects that contain the following fields:<b
 * `stream`: Indicates if we used the stream argument or not
 
 ### Data Postprocessors
-Below is a description of the data postprocessors.
+Below is a description of the data postprocessors. Each can be invoked with `fib <postprocessor name here> [Options]`
 
-#### `performance.py`
+#### `analyse`
 Prints the following output for a given run, same as vLLM.
 
 ```
 ============ Serving Benchmark Result ============
-Successful requests:                     20
-Benchmark duration (s):                  19.39
-Total input tokens:                      407
-Total generated tokens:                  5112
-Request throughput (req/s):              1.03
-Input token throughput (tok/s):          20.99
-Output token throughput (tok/s):         263.66
+Successful requests:                     20        
+Benchmark duration (s):                  4.12      
+Total input tokens:                      3978      
+Total generated tokens:                  4000      
+Request throughput (req/s):              4.85      
+Input token throughput (tok/s):          964.98    
+Output token throughput (tok/s):         970.32    
 ---------------Time to First Token----------------
-Mean TTFT (ms):                          24.66
-Median TTFT (ms):                        24.64
-P99 TTFT (ms):                           34.11
+Mean TTFT (ms):                          6.79      
+Median TTFT (ms):                        4.81      
+P99 TTFT (ms):                           17.90     
 -----Time per Output Token (excl. 1st token)------
-Mean TPOT (ms):                          2295.86
-Median TPOT (ms):                        2362.54
-P99 TPOT (ms):                           2750.76
+Mean TPOT (ms):                          1.57      
+Median TPOT (ms):                        1.59      
+P99 TPOT (ms):                           1.90      
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           1.57      
+Median ITL (ms):                         1.47      
+P99 ITL (ms):                            2.71      
 ==================================================
 ```
 
@@ -90,7 +94,7 @@ Supports the following args:
 | --- | --- |
 | `--datapath` | Path to the output json file produced. |
 
-#### `itl.py`
+#### `generate-itl-plot`
 
 Returns a plot of inter-token latencies for a specific request. Takes the following args:
 
@@ -100,7 +104,7 @@ Returns a plot of inter-token latencies for a specific request. Takes the follow
 | `--output` | Path to save figure supported by matplotlib. |
 | `--request-num` | Which request to produce ITL plot for. |
 
-#### `ttft.py`
+#### `generate-ttft-plot`
 
 Generates a simple CDF plot of **time to first token** requests. You can pass a single file or  a list of generated files from the benchmark to make a comparisson <br>
 
@@ -119,32 +123,31 @@ We will use gpt2 as the model<br>
 
 Once the backend is up and running we can go to the examples folder and run the inference benchmark using vllm_args.json file <br>
 `cd examples`<br>
-`inference-benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
+`fib benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
 
-then you can go to the folder data_postprocessors and see the performance with performance.py<br>
-`cd ../data_postprocessors` <br>
-`python performance.py --datapath ../examples/vllm-benchmark.json` <br>
+then you can run the performance analysis post-processor:<br>
+`fib analyse --datapath vllm-benchmark.json` <br>
 
 ```
 ============ Serving Benchmark Result ============
 Successful requests:                     20        
-Benchmark duration (s):                  4.15      
-Total input tokens:                      3836      
+Benchmark duration (s):                  4.12      
+Total input tokens:                      3978      
 Total generated tokens:                  4000      
-Request throughput (req/s):              4.82      
-Input token throughput (tok/s):          925.20    
-Output token throughput (tok/s):         964.76    
+Request throughput (req/s):              4.85      
+Input token throughput (tok/s):          964.98    
+Output token throughput (tok/s):         970.32    
 ---------------Time to First Token----------------
-Mean TTFT (ms):                          19.91     
-Median TTFT (ms):                        22.11     
-P99 TTFT (ms):                           28.55     
+Mean TTFT (ms):                          6.79      
+Median TTFT (ms):                        4.81      
+P99 TTFT (ms):                           17.90     
 -----Time per Output Token (excl. 1st token)------
-Mean TPOT (ms):                          6.73      
-Median TPOT (ms):                        7.96      
-P99 TPOT (ms):                           8.41      
+Mean TPOT (ms):                          1.57      
+Median TPOT (ms):                        1.59      
+P99 TPOT (ms):                           1.90      
 ---------------Inter-token Latency----------------
-Mean ITL (ms):                           6.73      
-Median ITL (ms):                         7.40      
-P99 ITL (ms):                            20.70     
+Mean ITL (ms):                           1.57      
+Median ITL (ms):                         1.47      
+P99 ITL (ms):                            2.71      
 ==================================================
 ```
