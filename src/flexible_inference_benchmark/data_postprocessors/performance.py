@@ -40,9 +40,9 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     mean_ttft_ms = np.mean(ttfts or 0) * 1000
     median_ttft_ms = np.median(ttfts or 0) * 1000
     p99_ttft_ms = np.percentile(ttfts or 0, 99) * 1000
-    mean_tpot_ms = np.mean(tpots) * 1000
-    median_tpot_ms = np.median(tpots) * 1000
-    p99_tpot_ms = np.percentile(tpots, 99) * 1000
+    mean_tpot_ms = np.mean(tpots or 0) * 1000
+    median_tpot_ms = np.median(tpots or 0) * 1000
+    p99_tpot_ms = np.percentile(tpots or 0, 99) * 1000
     mean_itl_ms = np.mean(itls or 0) * 1000
     median_itl_ms = np.median(itls or 0) * 1000
     p99_itl_ms = np.percentile(itls or 0, 99) * 1000
