@@ -5,7 +5,7 @@ This benchmarking framework operates entirely external to any serving framework,
 
 ## Installation
 ```
-cd flexible-inference-benchmark
+cd flexible-inference-bench
 pip install .
 ```
 
