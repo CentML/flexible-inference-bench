@@ -5,16 +5,16 @@ This benchmarking framework operates entirely external to any serving framework,
 
 ## Installation
 ```
-cd flexible-inference-benchmark
+cd flexible-inference-bench
 pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `inference-benchmark <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `fib <args>`.
 
-After you get your output (using `--output-file`), you can invoke one of the data postprocessors in `data_postprocessors`.
+After you get your output (using `--output-file`), you can invoke one of the data postprocessors using `fib analyse <args> | fib generate-ttft-plot <args> | fib generate-itl-plot <args>`.
 
-### Parameters
+### Parameters for fib benchmark
 | argument | description |
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
@@ -61,7 +61,7 @@ The output json file in an array of objects that contain the following fields:<b
 ### Data Postprocessors
 Below is a description of the data postprocessors.
 
-#### `performance.py`
+#### `fib analyse --datapath <path_to_file>`
 Prints the following output for a given run, same as vLLM.
 
 ```
@@ -90,7 +90,7 @@ Supports the following args:
 | --- | --- |
 | `--datapath` | Path to the output json file produced. |
 
-#### `itl.py`
+#### `fib generate-itl-plot`
 
 Returns a plot of inter-token latencies for a specific request. Takes the following args:
 
@@ -100,7 +100,7 @@ Returns a plot of inter-token latencies for a specific request. Takes the follow
 | `--output` | Path to save figure supported by matplotlib. |
 | `--request-num` | Which request to produce ITL plot for. |
 
-#### `ttft.py`
+#### `fib generate-ttft-plot`
 
 Generates a simple CDF plot of **time to first token** requests. You can pass a single file or  a list of generated files from the benchmark to make a comparisson <br>
 
@@ -115,15 +115,14 @@ You can install vllm with the command:<br>
 `pip install vllm`
 
 We will use gpt2 as the model<br>
-`python -m vllm.entrypoints.openai.api_server --model gpt2`
+`vllm serve gpt2`
 
 Once the backend is up and running we can go to the examples folder and run the inference benchmark using vllm_args.json file <br>
 `cd examples`<br>
-`inference-benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
+`fib benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
 
-then you can go to the folder data_postprocessors and see the performance with performance.py<br>
-`cd ../data_postprocessors` <br>
-`python performance.py --datapath ../examples/vllm-benchmark.json` <br>
+Then, you can see the results wit fib analyse<br>
+`fib analyse --datapath ../examples/vllm-benchmark.json` <br>
 
 ```
 ============ Serving Benchmark Result ============
