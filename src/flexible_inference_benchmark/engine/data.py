@@ -116,8 +116,6 @@ class Textfile(Data):
                 continue
             prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
             achieved_len = (prompt_end - starts[i]) + prefix_len
-            if achieved_len < 4 or output_tokens[i] < 4:
-                continue
 
             input_data.append(
                 (
@@ -195,8 +193,6 @@ class Random(Data):
                 continue
             prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
             achieved_len = prompt_end + prefix_len
-            if achieved_len < 4 or output_tokens[i] < 4:
-                continue
 
             input_data.append(
                 (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])

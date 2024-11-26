@@ -413,7 +413,6 @@ async def async_request_openai_chat_completions(
                             latency = time.perf_counter() - st
                         else:
                             timestamp = time.perf_counter()
-                            print(chunk)
                             data = json.loads(chunk)
 
                             delta = data["choices"][0]["delta"]
