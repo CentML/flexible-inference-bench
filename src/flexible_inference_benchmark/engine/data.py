@@ -1,5 +1,5 @@
 import abc
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import logging
 import json
 import random
@@ -116,6 +116,8 @@ class Textfile(Data):
                 continue
             prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
             achieved_len = (prompt_end - starts[i]) + prefix_len
+            if achieved_len < 4 or output_tokens[i] < 4:
+                continue
 
             input_data.append(
                 (
@@ -193,6 +195,8 @@ class Random(Data):
                 continue
             prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
             achieved_len = prompt_end + prefix_len
+            if achieved_len < 4 or output_tokens[i] < 4:
+                continue
 
             input_data.append(
                 (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])
@@ -205,7 +209,12 @@ class Random(Data):
 
 
 class ShareGPT(Data):
-    def __init__(self, filename: str, tokenizer: transformers.PreTrainedTokenizer) -> None:
+    def __init__(
+            self, 
+            filename: str, 
+            tokenizer: transformers.PreTrainedTokenizer,
+            output_token_distribution: Optional[distributions.Distribution] = None,
+    ) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
         self.tokenizer = tokenizer
@@ -214,13 +223,17 @@ class ShareGPT(Data):
             dataset = json.load(f)
 
         dataset = [data for data in dataset if len(data["conversations"]) > 2]
+        if output_token_distribution:
+            output_tokens = output_token_distribution.generate_distribution(len(dataset))
+        else:
+            output_tokens = None
         tokenized_dataset = [
             (
                 data["conversations"][0]["value"],
                 len(tokenizer(data["conversations"][0]["value"]).input_ids),
-                len(tokenizer(data["conversations"][1]["value"]).input_ids),
+                len(tokenizer(data["conversations"][1]["value"]).input_ids) if output_token_distribution is None else output_tokens[idx],
             )
-            for data in dataset
+            for idx, data in enumerate(dataset)
         ]
 
         filtered_dataset = [

@@ -52,9 +52,13 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
     if args.dataset_name == 'sharegpt':
         logger.info(
             "User selected sharegpt dataset.\n \
-            Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
+            Ignoring prompt distribution and following the shapes from the dataset.\n"
         )
-        prompt_cls = ShareGPT(filename, tokenizer)
+        if args.use_out_token_dist_sharegpt:
+            output_token_dist = select_distribution(args.output_token_distribution)
+        else:
+            output_token_dist = None
+        prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
         logger.info(
             f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions"
@@ -213,6 +217,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     benchmark_parser.add_argument("--config-file", default=None, help="configuration file")
 
+    benchmark_parser.add_argument("--use-out-token-dist-sharegpt", action="store_true", help="Use output token distribution for sharegpt.")
 
 def parse_args() -> argparse.Namespace:
 
