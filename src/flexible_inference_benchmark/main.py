@@ -218,7 +218,7 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description="CentML Inference Benchmark")
 
-    subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand')
+    subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand', required=True)
 
     add_performance_parser(subparsers)
     add_benchmark_subparser(subparsers)
@@ -316,8 +316,10 @@ def main() -> None:
         from flexible_inference_benchmark.data_postprocessors.itl import run
 
         run(args)
-    else:
+    elif args.subcommand == "benchmark":
         run_main(args)
+    else:
+        raise ValueError(f"Invalid subcommand {args.subcommand}")
 
 
 if __name__ == '__main__':
