@@ -238,7 +238,11 @@ def parse_args() -> argparse.Namespace:
         if not (args.prefix_text or args.prefix_len or args.no_prefix):
             parser.error("Please provide either prefix text or prefix length or specify no prefix.")
         if not (args.num_of_req or args.max_time_for_reqs):
-            parser.error("Please provide either number of requests or max time for requests.")
+            logger.info("Number of requests and max time for requests not provided. Defaulting to 1 request.")
+            args.num_of_req = 1
+        if not args.base_url:
+            logger.info("Base url not provided. Defaulting to http://localhost:8000")
+            args.base_url = "http://localhost:8000"
         if not args.model:
             parser.error("Please provide the model name.")
 
