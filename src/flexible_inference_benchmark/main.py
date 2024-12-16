@@ -169,7 +169,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     prefix_group.add_argument("--prefix-len", type=int, default=None, help="Length of prefix to use for all requests.")
 
-    prefix_group.add_argument('--no-prefix', action='store_true', help='No prefix for requests.')
+    prefix_group.add_argument('--no-prefix', type=bool, default=True, help='No prefix for requests, default is True.')
 
     benchmark_parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token")
 
