@@ -244,7 +244,13 @@ def parse_args() -> argparse.Namespace:
             logger.info("Base url not provided. Defaulting to http://localhost:8000")
             args.base_url = "http://localhost:8000"
         if not args.model:
-            parser.error("Please provide the model name.")
+            logger.info("Model name not provided. Trying to query the model name from the server.")
+            model = try_find_model(args.base_url)
+            if model is None:
+                parser.error("Model could not be deduced automatically. Please provide the model name.")
+            else:
+                logger.info(f"Model identified: {model}")
+                args.model = model
 
     return args
 
