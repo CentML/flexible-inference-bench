@@ -9,7 +9,7 @@ from typing import List, Any, Tuple, Union
 import numpy as np
 from transformers import AutoTokenizer
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
-from flexible_inference_benchmark.utils.utils import configure_logging
+from flexible_inference_benchmark.utils.utils import configure_logging, try_find_model
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
