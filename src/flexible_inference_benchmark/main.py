@@ -233,6 +233,8 @@ def parse_args() -> argparse.Namespace:
             for k, v in file_data.items():
                 # Reload arguments to override config file values with command line values
                 setattr(args, k, v)
+
+        configure_logging(args)
         if not (args.prefix_text or args.prefix_len or args.no_prefix):
             parser.error("Please provide either prefix text or prefix length or specify no prefix.")
         if not (args.num_of_req or args.max_time_for_reqs):
@@ -244,7 +246,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_main(args: argparse.Namespace) -> None:
-    configure_logging(args)
     if args.workload_type:
         workload_type = WORKLOADS_TYPES[args.workload_type]()
         workload_type.overwrite_args(args)
