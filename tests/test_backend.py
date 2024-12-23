@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import time
+from transformers import AutoTokenizer
 from flexible_inference_benchmark.main import generate_request_times, generate_prompts
 from flexible_inference_benchmark.engine.client import Client
 
@@ -14,7 +15,9 @@ def test_backend_function(vllm_server, args_config):
 
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_prompts = generate_prompts(args, size)
+    tokenizer_id = args.tokenizer if args.tokenizer else args.model
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+    requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
@@ -66,7 +69,7 @@ def test_backend_function(vllm_server, args_config):
 
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_prompts = generate_prompts(args, size)
+    requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]

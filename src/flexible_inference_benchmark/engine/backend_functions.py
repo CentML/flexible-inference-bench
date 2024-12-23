@@ -40,6 +40,7 @@ class RequestFuncOutput(BaseModel):
     itl: List[float] = Field(default_factory=list)  # List of inter-token latencies
     prompt_len: int = 0
     error: str = ""
+    output_len: Optional[int] = None
 
 
 async def async_request_tgi(
@@ -253,6 +254,7 @@ async def async_request_openai_completions(
                 "max_tokens": request_func_input.output_len,
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
+                "stream_options": {"include_usage": True}
             }
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
@@ -282,7 +284,7 @@ async def async_request_openai_completions(
                             else:
                                 data = json.loads(chunk)
 
-                                if data["choices"][0]["text"]:
+                                if len(data["choices"]) > 0 and data["choices"][0]["text"]:
                                     timestamp = time.perf_counter()
                                     # First token
                                     if ttft == 0.0:
@@ -295,9 +297,14 @@ async def async_request_openai_completions(
                                     # do not want to include as inter-token-latency
                                     elif data.get("usage", None) is None:
                                         output.itl.append(timestamp - most_recent_timestamp)
+                                    else:
+                                        pass
 
                                     most_recent_timestamp = timestamp
                                     generated_text += data["choices"][0]["text"]
+                        
+                                if data["usage"]:
+                                    output.output_len = data["usage"]["completion_tokens"]
 
                         output.generated_text = generated_text
                         output.success = True

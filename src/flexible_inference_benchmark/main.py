@@ -2,19 +2,21 @@ import argparse
 import json
 import logging
 import random
+import requests
 import asyncio
+import itertools
 import sys
 import time
 from typing import List, Any, Tuple, Union
 import numpy as np
 from transformers import AutoTokenizer
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
-from flexible_inference_benchmark.utils.utils import configure_logging, try_find_model
+from flexible_inference_benchmark.utils.utils import configure_logging, try_find_model, try_find_endpoint
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
 from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
-from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser
+from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
 from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 
@@ -43,10 +45,7 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int, int]]:
-    model_id = args.model
-    tokenizer_id = args.tokenizer if args.tokenizer else model_id
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name == 'sharegpt':
@@ -62,22 +61,19 @@ def generate_prompts(args: argparse.Namespace, size: int) -> List[Tuple[str, int
         input_prompt_dist = select_distribution(args.input_token_distribution)
         output_token_dist = select_distribution(args.output_token_distribution)
 
-        if args.prefix_len or args.no_prefix:
-            if args.prefix_len:
-                prefix_len = args.prefix_len
-            else:
-                prefix_len = 0
+        if args.prefix_len:
             prompt_cls = (
-                Random.with_prefix_len(prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_len(args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
-                else Textfile.with_prefix_len(filename, prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                else Textfile.with_prefix_len(filename, args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
             )
         else:
+            prefix_text = args.prefix_text or ""
             prompt_cls = (
-                Random.with_prefix_str(args.prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_str(prefix_text, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_str(
-                    filename, args.prefix_text, input_prompt_dist, output_token_dist, tokenizer
+                    filename, prefix_text, input_prompt_dist, output_token_dist, tokenizer
                 )
             )
 
@@ -104,43 +100,43 @@ def send_requests(
 
 def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore [type-arg]
 
-    benchmark_parser = subparsers.add_parser('benchmark')
+    benchmark_parser = subparsers.add_parser('benchmark', help="Benchmark an LLM serving endpoint", usage="fib benchmark [options]")
 
     benchmark_parser.add_argument("--seed", type=int, default=None, help="seed for reproducibility")
 
     benchmark_parser.add_argument(
-        "--backend",
+        "-b", "--backend",
         type=str,
-        default='cserve',
+        default='openai',
         choices=list(ASYNC_REQUEST_FUNCS.keys()),
         help="Backend inference engine.",
     )
 
     benchmark_parser.add_argument(
-        "--workload-type",
+        "-w", "--workload-type", "--workload",
         type=str,
         default=None,
         choices=list(WORKLOADS_TYPES.keys()),
-        help="choose a workload type, this will overwrite some arguments",
+        help="Preset request length distributions based on common workload types.",
     )
 
     url_group = benchmark_parser.add_mutually_exclusive_group()
 
     url_group.add_argument(
-        "--base-url", type=str, default=None, help="Server or API base url if not using http host and port."
+        "--base-url", type=str, default=None, help="Server base URL."
     )
 
     benchmark_parser.add_argument(
-        "--https-ssl", default=True, help="whether to check for ssl certificate for https endpoints, default is True"
+        "--https-ssl", default=True, help="Whether to check SSL certificates for HTTPS endpoints, default is True"
     )
 
-    benchmark_parser.add_argument("--endpoint", type=str, default="/v1/completions", help="API endpoint.")
+    benchmark_parser.add_argument("--endpoint", type=str, help="API endpoint.")
 
     req_group = benchmark_parser.add_mutually_exclusive_group()
 
-    req_group.add_argument("--num-of-req", type=int, default=None, help="Total number of request.")
+    req_group.add_argument("-n", "--num-of-req", type=int, default=None, help="Total number of request.")
 
-    req_group.add_argument("--max-time-for-reqs", type=int, default=None, help="Max time for requests in seconds.")
+    req_group.add_argument("--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds.")
 
     benchmark_parser.add_argument(
         "--request-distribution",
@@ -150,16 +146,23 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
     )
 
     benchmark_parser.add_argument(
+        "--rps",
+        dest='request_distribution',
+        type=lambda n: ["poisson", n],
+        help="Presets the request distribution to N requests per second following a poisson distribution."
+    )
+
+    benchmark_parser.add_argument(
         "--input-token-distribution",
         nargs="*",
-        default=["uniform", 0, 255],
+        default=["uniform", 1, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
     benchmark_parser.add_argument(
         "--output-token-distribution",
         nargs="*",
-        default=["uniform", 0, 255],
+        default=["uniform", 1, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
@@ -169,13 +172,11 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     prefix_group.add_argument("--prefix-len", type=int, default=None, help="Length of prefix to use for all requests.")
 
-    prefix_group.add_argument('--no-prefix', type=bool, default=True, help='No prefix for requests, default is True.')
+    benchmark_parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token.")
 
-    benchmark_parser.add_argument("--disable-ignore-eos", action="store_true", help="Disables ignoring the eos token")
+    benchmark_parser.add_argument("--disable-stream", action="store_true", help="Disable stream response from API.")
 
-    benchmark_parser.add_argument("--disable-stream", action="store_true", help="Disable stream response from API")
-
-    benchmark_parser.add_argument("--cookies", default={}, help="Insert cookies in the request")
+    benchmark_parser.add_argument("--cookies", default={}, help="Insert cookies in the request.")
 
     benchmark_parser.add_argument(
         "--dataset-name",
@@ -187,7 +188,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     benchmark_parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
 
-    benchmark_parser.add_argument("--model", type=str, help="Name of the model.")
+    benchmark_parser.add_argument("-m", "--model", type=str, help="Name of the model.")
 
     benchmark_parser.add_argument(
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
@@ -207,11 +208,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
         help="Output json file to save the results.",
     )
 
-    benchmark_parser.add_argument("--debug", action="store_true", help="Log debug messages")
+    benchmark_parser.add_argument("--debug", action="store_true", help="Log debug messages.")
 
-    benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request")
+    benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
 
-    benchmark_parser.add_argument("--config-file", default=None, help="configuration file")
+    benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
+
+    return benchmark_parser
 
 
 def parse_args() -> argparse.Namespace:
@@ -221,7 +224,7 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand', required=True)
 
     add_performance_parser(subparsers)
-    add_benchmark_subparser(subparsers)
+    benchmark_parser = add_benchmark_subparser(subparsers)
     add_ttft_parser(subparsers)
     add_itl_parser(subparsers)
 
@@ -235,22 +238,46 @@ def parse_args() -> argparse.Namespace:
                 setattr(args, k, v)
 
         configure_logging(args)
-        if not (args.prefix_text or args.prefix_len or args.no_prefix):
-            parser.error("Please provide either prefix text or prefix length or specify no prefix.")
+
+        def fail(msg: str):
+            benchmark_parser.print_help()
+            logger.error(msg)
+            sys.exit(1)
+        
         if not (args.num_of_req or args.max_time_for_reqs):
             logger.info("Number of requests and max time for requests not provided. Defaulting to 1 request.")
             args.num_of_req = 1
-        if not args.base_url:
-            logger.info("Base url not provided. Defaulting to http://localhost:8000")
-            args.base_url = "http://localhost:8000"
+        
+        openapi = None
+        if not args.base_url or not args.model or not args.endpoint:
+            if not args.base_url:
+                logger.info("Base url not provided. Searching for ports on localhost...")
+                base_try_options = ["http://localhost:8000", "http://localhost:8080"]
+            else:
+                base_try_options = [args.base_url]
+            for base_url, path in itertools.product(base_try_options, ["openapi.json", "health", "openai/health"]):
+                try:
+                    response = requests.get(f"{base_url}/{path}")
+                    response.raise_for_status()
+                    args.base_url = base_url
+                    if "openapi" in path:
+                        openapi = response.json()
+                    break
+                except:
+                    continue
+            if not args.base_url:
+                fail("No server found. Please provide the base url.")
+            logger.info(f"Server found at {args.base_url}. Continuing.")
         if not args.model:
             logger.info("Model name not provided. Trying to query the model name from the server.")
-            model = try_find_model(args.base_url)
+            model = try_find_model(args.base_url, openapi)
             if model is None:
-                parser.error("Model could not be deduced automatically. Please provide the model name.")
+                fail("Model could not be deduced automatically. Please provide the model name.")
             else:
                 logger.info(f"Model identified: {model}")
                 args.model = model
+        if not args.endpoint:
+            args.endpoint = try_find_endpoint(args.base_url, openapi)
 
     return args
 
@@ -265,7 +292,9 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_prompts = generate_prompts(args, size)
+    tokenizer_id = args.tokenizer if args.tokenizer else args.model
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+    requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
@@ -305,6 +334,8 @@ def run_main(args: argparse.Namespace) -> None:
         "tokenizer": args.tokenizer if args.tokenizer else args.model,
         "stream": not args.disable_stream,
     }
+
+    calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
 
     if args.output_file:
         with open(args.output_file, "w") as f:

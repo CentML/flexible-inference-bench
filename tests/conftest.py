@@ -48,7 +48,6 @@ def args_config():
         "num_of_req": 10, 
         "model": "gpt2",
         "tokenizer": "gpt2",
-        "no_prefix": True,
         "prefix_text": None,
         "prefix_len": None,
         "disable_ignore_eos": False,
