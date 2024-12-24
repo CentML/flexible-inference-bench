@@ -35,6 +35,7 @@ def test_backend_function(vllm_server, args_config):
         not args.disable_stream,
         args.cookies,
         args.verbose,
+        None
     )
 
     t = time.perf_counter() 
@@ -87,6 +88,7 @@ def test_backend_function(vllm_server, args_config):
         not args.disable_stream,
         args.cookies,
         args.verbose,
+        None
     )
 
     t = time.perf_counter() 

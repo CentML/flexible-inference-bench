@@ -138,6 +138,8 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     req_group.add_argument("--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds.")
 
+    benchmark_parser.add_argument("--max-concurrent", type=int, default=None, help="Optional limit on the number of concurrent in-flight requests.")
+
     benchmark_parser.add_argument(
         "--request-distribution",
         nargs="*",
@@ -313,6 +315,7 @@ def run_main(args: argparse.Namespace) -> None:
         not args.disable_stream,
         args.cookies,
         args.verbose,
+        args.max_concurrent
     )
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
     client_verbose_value = client.verbose
