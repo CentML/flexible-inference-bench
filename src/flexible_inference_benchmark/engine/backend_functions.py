@@ -297,8 +297,6 @@ async def async_request_openai_completions(
                                     # do not want to include as inter-token-latency
                                     elif data.get("usage", None) is None:
                                         output.itl.append(timestamp - most_recent_timestamp)
-                                    else:
-                                        pass
 
                                     most_recent_timestamp = timestamp
                                     generated_text += data["choices"][0]["text"]
