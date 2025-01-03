@@ -47,7 +47,12 @@ class Client:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
     async def send_request(
-        self, idx: int, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm], sema: Optional[asyncio.BoundedSemaphore]
+        self,
+        idx: int,
+        data: RequestFuncInput,
+        wait_time: float,
+        pbar: Optional[tqdm],
+        sema: Optional[asyncio.BoundedSemaphore],
     ) -> Optional[Union[RequestFuncOutput, Any]]:
         await asyncio.sleep(wait_time)
         if sema:

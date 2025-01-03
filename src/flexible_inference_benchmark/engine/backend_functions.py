@@ -254,7 +254,7 @@ async def async_request_openai_completions(
                 "max_tokens": request_func_input.output_len,
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
-                "stream_options": {"include_usage": True}
+                "stream_options": {"include_usage": True},
             }
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
@@ -302,7 +302,7 @@ async def async_request_openai_completions(
 
                                     most_recent_timestamp = timestamp
                                     generated_text += data["choices"][0]["text"]
-                        
+
                                 if data["usage"]:
                                     output.output_len = data["usage"]["completion_tokens"]
 

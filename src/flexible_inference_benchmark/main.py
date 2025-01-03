@@ -2,12 +2,12 @@ import argparse
 import json
 import logging
 import random
-import requests
 import asyncio
 import itertools
 import sys
 import time
 from typing import List, Any, Tuple, Union
+import requests
 import numpy as np
 from transformers import AutoTokenizer
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
@@ -65,16 +65,16 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
             prompt_cls = (
                 Random.with_prefix_len(args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
-                else Textfile.with_prefix_len(filename, args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                else Textfile.with_prefix_len(
+                    filename, args.prefix_len, input_prompt_dist, output_token_dist, tokenizer
+                )
             )
         else:
             prefix_text = args.prefix_text or ""
             prompt_cls = (
                 Random.with_prefix_str(prefix_text, input_prompt_dist, output_token_dist, tokenizer)
                 if args.dataset_name == "random"
-                else Textfile.with_prefix_str(
-                    filename, prefix_text, input_prompt_dist, output_token_dist, tokenizer
-                )
+                else Textfile.with_prefix_str(filename, prefix_text, input_prompt_dist, output_token_dist, tokenizer)
             )
 
     if not prompt_cls:
@@ -98,14 +98,17 @@ def send_requests(
     return asyncio.run(client.benchmark(requests_prompts, requests_times))
 
 
-def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore [type-arg]
+def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # type: ignore [type-arg]
 
-    benchmark_parser = subparsers.add_parser('benchmark', help="Benchmark an LLM serving endpoint", usage="fib benchmark [options]")
+    benchmark_parser = subparsers.add_parser(
+        'benchmark', help="Benchmark an LLM serving endpoint", usage="fib benchmark [options]"
+    )
 
     benchmark_parser.add_argument("--seed", type=int, default=None, help="seed for reproducibility")
 
     benchmark_parser.add_argument(
-        "-b", "--backend",
+        "-b",
+        "--backend",
         type=str,
         default='openai',
         choices=list(ASYNC_REQUEST_FUNCS.keys()),
@@ -113,7 +116,9 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
     )
 
     benchmark_parser.add_argument(
-        "-w", "--workload-type", "--workload",
+        "-w",
+        "--workload-type",
+        "--workload",
         type=str,
         default=None,
         choices=list(WORKLOADS_TYPES.keys()),
@@ -122,9 +127,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     url_group = benchmark_parser.add_mutually_exclusive_group()
 
-    url_group.add_argument(
-        "--base-url", type=str, default=None, help="Server base URL."
-    )
+    url_group.add_argument("--base-url", type=str, default=None, help="Server base URL.")
 
     benchmark_parser.add_argument(
         "--https-ssl", default=True, help="Whether to check SSL certificates for HTTPS endpoints, default is True"
@@ -136,9 +139,16 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     req_group.add_argument("-n", "--num-of-req", type=int, default=None, help="Total number of request.")
 
-    req_group.add_argument("--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds.")
+    req_group.add_argument(
+        "--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds."
+    )
 
-    benchmark_parser.add_argument("--max-concurrent", type=int, default=None, help="Optional limit on the number of concurrent in-flight requests.")
+    benchmark_parser.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=None,
+        help="Optional limit on the number of concurrent in-flight requests.",
+    )
 
     benchmark_parser.add_argument(
         "--request-distribution",
@@ -151,7 +161,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
         "--rps",
         dest='request_distribution',
         type=lambda n: ["poisson", n],
-        help="Presets the request distribution to N requests per second following a poisson distribution."
+        help="Presets the request distribution to N requests per second following a poisson distribution.",
     )
 
     benchmark_parser.add_argument(
@@ -241,15 +251,15 @@ def parse_args() -> argparse.Namespace:
 
         configure_logging(args)
 
-        def fail(msg: str):
+        def fail(msg: str) -> None:
             benchmark_parser.print_help()
             logger.error(msg)
             sys.exit(1)
-        
+
         if not (args.num_of_req or args.max_time_for_reqs):
             logger.info("Number of requests and max time for requests not provided. Defaulting to 1 request.")
             args.num_of_req = 1
-        
+
         openapi = None
         if not args.base_url or not args.model or not args.endpoint:
             if not args.base_url:
@@ -259,13 +269,13 @@ def parse_args() -> argparse.Namespace:
                 base_try_options = [args.base_url]
             for base_url, path in itertools.product(base_try_options, ["openapi.json", "health", "openai/health"]):
                 try:
-                    response = requests.get(f"{base_url}/{path}")
+                    response = requests.get(f"{base_url}/{path}", timeout=1)
                     response.raise_for_status()
                     args.base_url = base_url
                     if "openapi" in path:
                         openapi = response.json()
                     break
-                except:
+                except (requests.HTTPError, requests.ConnectionError):
                     continue
             if not args.base_url:
                 fail("No server found. Please provide the base url.")
@@ -315,7 +325,7 @@ def run_main(args: argparse.Namespace) -> None:
         not args.disable_stream,
         args.cookies,
         args.verbose,
-        args.max_concurrent
+        args.max_concurrent,
     )
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
     client_verbose_value = client.verbose

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import logging
 import argparse
@@ -16,20 +16,21 @@ def configure_logging(args: argparse.Namespace) -> None:
         level=logging.DEBUG if show_debug_logs else logging.INFO,
     )
 
-def try_find_model(base_url: str, openapi: Optional[dict]) -> Optional[str]:
+
+def try_find_model(base_url: str, openapi: Optional[Any]) -> Optional[str]:
     """
     Query the base URL for models and return the first model ID. Assumes an OpenAI-like API.
 
     Args:
         base_url (str): The URL to query.
-        openapi (dict): Optional JSON object describing the API.
+        openapi (Any): Optional JSON object describing the API.
 
     Returns:
         Optional[str]: The first model ID, or None if the request fails.
     """
     try_paths = ["/v1/models", "/openai/v1/models", "/models"]
     if openapi:
-        try_paths = filter(lambda path: path in openapi["paths"].keys(), try_paths)
+        try_paths = list(filter(lambda path: path in openapi["paths"].keys(), try_paths))
     try_urls = [f"{base_url}{path}" for path in try_paths]
     resp_json = None
     for url in try_urls:
@@ -42,18 +43,19 @@ def try_find_model(base_url: str, openapi: Optional[dict]) -> Optional[str]:
             continue
 
     if resp_json is not None and "models" in resp_json:
-        return resp_json["models"][0]["id"]
+        return str(resp_json["models"][0]["id"])
     elif resp_json is not None and "data" in resp_json:
-        return resp_json["data"][0]["id"]
+        return str(resp_json["data"][0]["id"])
     return None
 
-def try_find_endpoint(base_url: str, openapi: Optional[dict]) -> Optional[str]:
+
+def try_find_endpoint(base_url: str, openapi: Optional[Any]) -> Optional[str]:
     """
     Query the base URL for endpoints and return any that exist.
 
     Args:
         base_url (str): The URL to query.
-        openapi (dict): Optional JSON object describing the API.
+        openapi (Any): Optional JSON object describing the API.
 
     Returns:
         Optional[str]: The path of the identified endpoint, or None if no endpoint was found.
@@ -61,18 +63,18 @@ def try_find_endpoint(base_url: str, openapi: Optional[dict]) -> Optional[str]:
     try_paths = ["/v1/completions", "/openai/v1/completions", "/generate_stream", "/v1/generate", "/generate"]
     if openapi:
         try_paths = list(filter(lambda path: path in openapi["paths"].keys(), try_paths))
-    
+
     if len(try_paths) == 1:
         return try_paths[0]
-        
+
     for path in try_paths:
         try:
             response = requests.post(f"{base_url}{path}")
             if response.ok or response.status_code == 400:
-                return path # 400 means the endpoint exists, just that the request wasn't proper
+                return path  # 400 means the endpoint exists, just that the request wasn't proper
             response.raise_for_status()
             break
         except:
             continue
-    
+
     return None

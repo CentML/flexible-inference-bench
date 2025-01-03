@@ -13,7 +13,7 @@ def add_performance_parser(subparsers: argparse._SubParsersAction) -> None:
     performance_parser.add_argument("datapath", type=str, help='Path to the json file')
 
 
-def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream):
+def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream) -> None:
     actual_output_lens = []
     total_input = 0
     completed = 0
@@ -25,7 +25,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
             if "output_len" in outputs[i]:
                 output_len = outputs[i]["output_len"]
             else:
-                output_len  = len(tokenizer(outputs[i]["generated_text"], add_special_tokens=False).input_ids)
+                output_len = len(tokenizer(outputs[i]["generated_text"], add_special_tokens=False).input_ids)
             actual_output_lens.append(output_len)
             total_input += input_requests[i][1]
             if output_len > 1:
