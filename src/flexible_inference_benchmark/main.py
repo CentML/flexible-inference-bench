@@ -301,7 +301,7 @@ def parse_args() -> argparse.Namespace:
             args.endpoint = try_find_endpoint(args.base_url, openapi)
         if args.endpoint and args.endpoint[0] != '/':
             args.endpoint = "/" + args.endpoint
-        
+
         if not args.dataset_path and args.dataset_name == 'sharegpt':
             # download the sharegpt dataset and cache it in the home directory
             cache_dir = os.path.expanduser("~/.cache/flexible_inference_benchmark/")
@@ -309,13 +309,19 @@ def parse_args() -> argparse.Namespace:
                 os.makedirs(cache_dir)
             sharegpt_path = os.path.join(cache_dir, "sharegpt.json")
             if not os.path.exists(sharegpt_path):
-                logger.info("Downloading the sharegpt dataset to ~/.cache/flexible_inference_benchmark/sharegpt.json ...")
+                logger.info(
+                    "Downloading the sharegpt dataset to ~/.cache/flexible_inference_benchmark/sharegpt.json ..."
+                )
                 download_sharegpt_dataset(sharegpt_path)
             args.dataset_path = sharegpt_path
-        
+
         if args.dataset_name == 'sharegpt' and args.workload_type:
-            fail("ShareGPT dataset is selected. Prompt and output distributions will be ignored. Do not specify workload type with ShareGPT dataset.")
-        
+            fail(
+                "ShareGPT dataset is selected. "
+                "Prompt and output distributions will be ignored. "
+                "Do not specify workload type with ShareGPT dataset."
+            )
+
         if args.dataset_path and not args.dataset_name:
             args.dataset_name = "other"
 

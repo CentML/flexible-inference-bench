@@ -109,6 +109,7 @@ def set_max_open_files(n: Optional[int]) -> None:
             e,
         )
 
+
 def download_sharegpt_dataset(path: str) -> None:
     """
     Download the ShareGPT V3 dataset.
