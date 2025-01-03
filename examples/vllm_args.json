@@ -2,12 +2,10 @@
     "backend": "vllm",
     "base_url": "http://localhost:8000",
     "endpoint": "/v1/completions",
-    "dataset_name": "random",
-    "input_token_distribution": ["normal", 200, 10],
-    "output_token_distribution": ["uniform", 200, 201],
-    "request_distribution": ["poisson", 5],
-    "num_of_req": 20,
-    "model": "gpt2",
-    "tokenizer": "gpt2",
-    "no_prefix": true
+    "dataset_name": "sharegpt",
+    "dataset_path": "sharegpt.json",
+    "request_distribution": ["poisson", 1],
+    "num_of_req": 100,
+    "model": "meta-llama/Meta-Llama-3.1-405B-FP8",
+    "tokenizer": "meta-llama/Llama-3.1-8B-Instruct"
 }

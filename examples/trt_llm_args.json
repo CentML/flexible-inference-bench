@@ -8,6 +8,5 @@
     "request_distribution": ["poisson", 5],
     "num_of_req": 20,
     "model": "google/gemma-2b",
-    "tokenizer": "google/gemma-2b",
-    "no_prefix": true
+    "tokenizer": "google/gemma-2b"
 }

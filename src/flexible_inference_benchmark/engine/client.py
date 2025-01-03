@@ -25,6 +25,7 @@ class Client:
         stream: bool,
         cookies: Dict[str, str],
         verbose: bool,
+        max_concurrent: Optional[int],
     ):
         self.backend = backend
         self.api_url = api_url
@@ -37,6 +38,7 @@ class Client:
         self.stream = stream
         self.cookies = cookies
         self.verbose = verbose
+        self.max_concurrent = max_concurrent
 
     @property
     def request_func(
@@ -45,10 +47,19 @@ class Client:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
     async def send_request(
-        self, idx: int, data: RequestFuncInput, wait_time: float, pbar: Optional[tqdm]
+        self,
+        idx: int,
+        data: RequestFuncInput,
+        wait_time: float,
+        pbar: Optional[tqdm],
+        sema: Optional[asyncio.BoundedSemaphore],
     ) -> Optional[Union[RequestFuncOutput, Any]]:
         await asyncio.sleep(wait_time)
-        return await self.request_func(idx, data, pbar, self.verbose, wait_time)
+        if sema:
+            async with sema:
+                return await self.request_func(idx, data, pbar, self.verbose, wait_time)
+        else:
+            return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
         self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]]
@@ -73,9 +84,11 @@ class Client:
             for data_sample in data
         ]
 
+        sema = asyncio.BoundedSemaphore(self.max_concurrent) if self.max_concurrent else None
+
         return await asyncio.gather(
             *[
-                self.send_request(idx, data, request_time, pbar)
+                self.send_request(idx, data, request_time, pbar, sema)
                 for idx, (data, request_time) in enumerate(zip(request_func_inputs, request_times))
             ]
         )
@@ -94,4 +107,4 @@ class Client:
             stream=self.stream,
             cookies=self.cookies,
         )
-        return await self.send_request(0, data, 0, None)
+        return await self.send_request(0, data, 0, None, None)
