@@ -60,7 +60,11 @@ def try_find_endpoint(base_url: str, openapi: Optional[dict]) -> Optional[str]:
     """
     try_paths = ["/v1/completions", "/openai/v1/completions", "/generate_stream", "/v1/generate", "/generate"]
     if openapi:
-        try_paths = filter(lambda path: path in openapi["paths"].keys(), try_paths)
+        try_paths = list(filter(lambda path: path in openapi["paths"].keys(), try_paths))
+    
+    if len(try_paths) == 1:
+        return try_paths[0]
+        
     for path in try_paths:
         try:
             response = requests.post(f"{base_url}{path}")
@@ -70,3 +74,5 @@ def try_find_endpoint(base_url: str, openapi: Optional[dict]) -> Optional[str]:
             break
         except:
             continue
+    
+    return None
