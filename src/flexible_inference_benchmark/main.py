@@ -299,6 +299,8 @@ def parse_args() -> argparse.Namespace:
                 args.model = model
         if not args.endpoint:
             args.endpoint = try_find_endpoint(args.base_url, openapi)
+        if args.endpoint and args.endpoint[0] != '/':
+            args.endpoint = "/" + args.endpoint
         
         if not args.dataset_path and args.dataset_name == 'sharegpt':
             # download the sharegpt dataset and cache it in the home directory
