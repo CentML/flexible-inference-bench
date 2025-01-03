@@ -31,4 +31,8 @@ class Rag(BaseWorkload):
     output_token_distribution: List[Union[str, int]] = ['normal', 1000, 5]
 
 
-WORKLOADS_TYPES = {"general": General, "summary": Summary, "story": Story, "rag": Rag}
+class Tiny(BaseWorkload):
+    input_token_distribution: List[Union[str, int]] = ['uniform', 5, 7]
+    output_token_distribution: List[Union[str, int]] = ['uniform', 5, 7]
+
+WORKLOADS_TYPES = {"general": General, "summary": Summary, "story": Story, "rag": Rag, "tiny": Tiny}
