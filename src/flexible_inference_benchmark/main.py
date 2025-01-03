@@ -5,6 +5,7 @@ import random
 import asyncio
 import itertools
 import sys
+import os
 import time
 from typing import List, Any, Tuple, Union
 import requests
@@ -16,6 +17,7 @@ from flexible_inference_benchmark.utils.utils import (
     try_find_model,
     try_find_endpoint,
     set_max_open_files,
+    download_sharegpt_dataset,
 )
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
@@ -55,8 +57,8 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name == 'sharegpt':
         logger.info(
-            "User selected sharegpt dataset.\n \
-            Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
+            "User selected sharegpt dataset. "
+            "Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
         )
         prompt_cls = ShareGPT(filename, tokenizer)
     else:
@@ -197,6 +199,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     benchmark_parser.add_argument(
         "--dataset-name",
+        "--dataset",
         type=str,
         default="random",
         choices=["sharegpt", "other", "random"],
@@ -258,6 +261,7 @@ def parse_args() -> argparse.Namespace:
 
         def fail(msg: str) -> None:
             benchmark_parser.print_help()
+            print('\n\n\n')
             logger.error(msg)
             sys.exit(1)
 
@@ -295,6 +299,23 @@ def parse_args() -> argparse.Namespace:
                 args.model = model
         if not args.endpoint:
             args.endpoint = try_find_endpoint(args.base_url, openapi)
+        
+        if not args.dataset_path and args.dataset_name == 'sharegpt':
+            # download the sharegpt dataset and cache it in the home directory
+            cache_dir = os.path.expanduser("~/.cache/flexible_inference_benchmark/")
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+            sharegpt_path = os.path.join(cache_dir, "sharegpt.json")
+            if not os.path.exists(sharegpt_path):
+                logger.info("Downloading the sharegpt dataset to ~/.cache/flexible_inference_benchmark/sharegpt.json ...")
+                download_sharegpt_dataset(sharegpt_path)
+            args.dataset_path = sharegpt_path
+        
+        if args.dataset_name == 'sharegpt' and args.workload_type:
+            fail("ShareGPT dataset is selected. Prompt and output distributions will be ignored. Do not specify workload type with ShareGPT dataset.")
+        
+        if args.dataset_path and not args.dataset_name:
+            args.dataset_name = "other"
 
     return args
 

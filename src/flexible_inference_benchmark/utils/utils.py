@@ -108,3 +108,16 @@ def set_max_open_files(n: Optional[int]) -> None:
             request_amount,
             e,
         )
+
+def download_sharegpt_dataset(path: str) -> None:
+    """
+    Download the ShareGPT V3 dataset.
+
+    Args:
+        path (str): The path to save the dataset to.
+    """
+    url = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
+    response = requests.get(url)
+    response.raise_for_status()
+    with open(path, "wb") as f:
+        f.write(response.content)
