@@ -9,7 +9,7 @@ from typing import List, Any, Tuple, Union
 import numpy as np
 from transformers import AutoTokenizer
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
-from flexible_inference_benchmark.utils.utils import configure_logging
+from flexible_inference_benchmark.utils.utils import configure_logging, set_max_open_files
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
@@ -258,6 +258,8 @@ def run_main(args: argparse.Namespace) -> None:
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
+
+    set_max_open_files(min_length + 256)
 
     args.api_url = f"{args.base_url}{args.endpoint}"
 
