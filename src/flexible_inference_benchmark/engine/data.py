@@ -214,13 +214,18 @@ class ShareGPT(Data):
             dataset = json.load(f)
 
         dataset = [data for data in dataset if len(data["conversations"]) > 2]
+
+        sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
+            data["conversations"][1]["value"] for data in dataset
+        ]
+        results = tokenizer(sequences_to_encode)
         tokenized_dataset = [
             (
-                data["conversations"][0]["value"],
-                len(tokenizer(data["conversations"][0]["value"]).input_ids),
-                len(tokenizer(data["conversations"][1]["value"]).input_ids),
+                dataset[i]["conversations"][0]["value"],
+                len(results.input_ids[i]),
+                len(results.input_ids[i + len(dataset)]),
             )
-            for data in dataset
+            for i in range(len(dataset))
         ]
 
         filtered_dataset = [
