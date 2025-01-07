@@ -223,13 +223,18 @@ class ShareGPT(Data):
             output_tokens = output_token_distribution.generate_distribution(len(dataset))
         else:
             output_tokens = None
+            
+        sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
+            data["conversations"][1]["value"] for data in dataset
+        ]
+        results = tokenizer(sequences_to_encode)
         tokenized_dataset = [
             (
-                data["conversations"][0]["value"],
-                len(tokenizer(data["conversations"][0]["value"]).input_ids),
-                len(tokenizer(data["conversations"][1]["value"]).input_ids) if output_token_distribution is None else output_tokens[idx],
+                dataset[i]["conversations"][0]["value"],
+                len(results.input_ids[i]),
+                len(results.input_ids[i + len(dataset)]) if output_tokens is None else output_tokens[i],
             )
-            for idx, data in enumerate(dataset)
+            for i in range(len(dataset))
         ]
 
         filtered_dataset = [
