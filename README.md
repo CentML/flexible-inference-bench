@@ -27,7 +27,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--input-token-distribution` | Request distribution for prompt length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--output-token-distribution` | Request distribution for output token length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--workload` (`-w`) | One of a few presets that define the input and output token distributions for common use-cases. |
-| one of:<br>`--prefix-text`<br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
+| one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
 | `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
 | `--dataset-path` | Path to the dataset. If `sharegpt` is the dataset and this is not provided, it will be automatically downloaded and cached. Otherwise, the dataset name will default to `other`. |
 | `--model` (`-m`) | Name of the model. |
