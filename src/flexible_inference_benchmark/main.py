@@ -165,7 +165,8 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
-        "--rps",
+        "-rps",
+        "--requests-per-second",
         dest='request_distribution',
         type=lambda n: ["poisson", n],
         help="Presets the request distribution to N requests per second following a poisson distribution.",
