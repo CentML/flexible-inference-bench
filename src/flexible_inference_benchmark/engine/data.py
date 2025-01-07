@@ -206,10 +206,10 @@ class Random(Data):
 
 class ShareGPT(Data):
     def __init__(
-            self, 
-            filename: str, 
-            tokenizer: transformers.PreTrainedTokenizer,
-            output_token_distribution: Optional[distributions.Distribution] = None,
+        self,
+        filename: str,
+        tokenizer: transformers.PreTrainedTokenizer,
+        output_token_distribution: Optional[distributions.Distribution] = None,
     ) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
@@ -223,7 +223,7 @@ class ShareGPT(Data):
             output_tokens = output_token_distribution.generate_distribution(len(dataset))
         else:
             output_tokens = None
-            
+
         sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
             data["conversations"][1]["value"] for data in dataset
         ]

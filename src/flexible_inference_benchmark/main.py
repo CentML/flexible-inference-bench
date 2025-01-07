@@ -217,7 +217,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> None:  # 
 
     benchmark_parser.add_argument("--config-file", default=None, help="configuration file")
 
-    benchmark_parser.add_argument("--use-out-token-dist-sharegpt", action="store_true", help="Use output token distribution for sharegpt.")
+    benchmark_parser.add_argument(
+        "--use-out-token-dist-sharegpt", action="store_true", help="Use output token distribution for sharegpt."
+    )
+
 
 def parse_args() -> argparse.Namespace:
 
