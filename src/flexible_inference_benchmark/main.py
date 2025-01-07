@@ -385,13 +385,13 @@ def run_main(args: argparse.Namespace) -> None:
         "stream": not args.disable_stream,
     }
 
-    calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
-
     if args.output_file:
         with open(args.output_file, "w") as f:
             f.write(json.dumps(output, indent=4))  # type: ignore
     if args.debug:
         logger.debug(f"{output_list}")
+
+    calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
 
 
 def main() -> None:
