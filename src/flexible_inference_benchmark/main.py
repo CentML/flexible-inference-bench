@@ -60,16 +60,7 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
             "User selected sharegpt dataset. "
             "Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
         )
-        if args.use_out_token_dist_sharegpt:
-            output_token_dist = select_distribution(args.output_token_distribution)
-            logger.info(
-                "User specified sharegpt dataset. "
-                "Ignoring prompt distribution and following the shapes from the dataset.\n"
-            )
-        else:
-            output_token_dist = None
-            logger.info("Ignoring output length distribution and following the shapes from the dataset.\n")
-        prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
+        prompt_cls = ShareGPT(filename, tokenizer)
     else:
         logger.info(
             f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions"

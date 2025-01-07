@@ -29,7 +29,6 @@ do
 	    --config-file $SCRIPT_DIR/benchmark-serverless.json \
 	    --dataset-pat ShareGPT_V3_unfiltered_cleaned_split.json \
 	    --request-distribution poisson $rate \
-	    --use-out-token-dist-sharegpt \
 	    --output-file $datafile \
 	    --num-of-req $num_of_req
     if [ $? -ne 0 ]; then
