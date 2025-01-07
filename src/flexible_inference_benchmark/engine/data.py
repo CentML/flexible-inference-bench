@@ -209,7 +209,6 @@ class ShareGPT(Data):
         self,
         filename: str,
         tokenizer: transformers.PreTrainedTokenizer,
-        output_token_distribution: Optional[distributions.Distribution] = None,
     ) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
@@ -219,10 +218,6 @@ class ShareGPT(Data):
             dataset = json.load(f)
 
         dataset = [data for data in dataset if len(data["conversations"]) > 2]
-        if output_token_distribution:
-            output_tokens = output_token_distribution.generate_distribution(len(dataset))
-        else:
-            output_tokens = None
 
         sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
             data["conversations"][1]["value"] for data in dataset
@@ -232,7 +227,7 @@ class ShareGPT(Data):
             (
                 dataset[i]["conversations"][0]["value"],
                 len(results.input_ids[i]),
-                len(results.input_ids[i + len(dataset)]) if output_tokens is None else output_tokens[i],
+                len(results.input_ids[i + len(dataset)]),
             )
             for i in range(len(dataset))
         ]
