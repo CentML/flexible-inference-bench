@@ -205,11 +205,7 @@ class Random(Data):
 
 
 class ShareGPT(Data):
-    def __init__(
-        self,
-        filename: str,
-        tokenizer: transformers.PreTrainedTokenizer,
-    ) -> None:
+    def __init__(self, filename: str, tokenizer: transformers.PreTrainedTokenizer) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
         self.tokenizer = tokenizer

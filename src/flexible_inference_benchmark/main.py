@@ -68,9 +68,7 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
             )
         else:
             output_token_dist = None
-            logger.info(
-                "Ignoring output length distribution and following the shapes from the dataset.\n"
-            )
+            logger.info("Ignoring output length distribution and following the shapes from the dataset.\n")
         prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
         logger.info(
@@ -246,8 +244,6 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
 
     return benchmark_parser
-
-
 
 
 def parse_args() -> argparse.Namespace:
