@@ -1,7 +1,7 @@
 # Flexible Inference Benchmarker
 A modular, extensible LLM inference benchmarking framework that supports multiple benchmarking frameworks and paradigms.
 
-This benchmarking framework operates entirely external to any serving framework, and can easily be extended and modified. It is intended to be fully-featured to provide a variety of statistics and profiling modes and be easily extensible.
+This benchmarking framework operates entirely externally to any serving framework, and can easily be extended and modified. It is intended to be fully-featured to provide a variety of statistics and profiling modes.
 
 ## Installation
 ```
@@ -10,41 +10,47 @@ pip install .
 ```
 
 ## Usage
-After installing with the above instructions, the benchmarker can be invoked with `fib <args>`.
+After installing with the above instructions, the benchmarker can be invoked with `fib benchmark [options]`.
 
-After you get your output (using `--output-file`), you can invoke one of the data postprocessors using `fib analyse <args> | fib generate-ttft-plot <args> | fib generate-itl-plot <args>`.
+After benchmarking, the results are saved to `output-file.json` (or specified by `--output-file`) and can be postprocessed using `fib analyse <file> | fib generate-ttft-plot [options] | fib generate-itl-plot [options]`.
 
 ### Parameters for fib benchmark
 | argument | description |
 | --- | --- |
 | `--seed` | Seed for reproducibility. |
-| `--backend` | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. <br> **For tensorrt-llm temperature is set to 0.01 since NGC container >= 24.06 does not support 0.0** |
-| `--base-url` | Server or API base url, without endpoint |
-| `--endpoint` | API endpoint. |
-| one of <br> `--num-of-req` **or** <br> `--max-time-for-reqs` | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
-| `--request-distribution` | Distribution for sending requests: <br> **eg:** `exponential 5` (request will follow an exponential distribution with an average time between requests of **5 seconds**) <br> options: <br> `poisson rate` <br> `uniform min_val max_val` <br> `normal mean std`. | 
+| `--backend` (`-b`) | Backend options: `tgi`,`vllm`,`cserve`,`cserve-debug`,`lmdeploy`,`deepspeed-mii`,`openai`,`openai-chat`,`tensorrt-llm`. <br> **For tensorrt-llm temperature is set to 0.01 since NGC container >= 24.06 does not support 0.0** |
+| `--base-url` | Server or API base url, without endpoint. |
+| `--endpoint` | API endpoint path. |
+| one of <br> `--num-of-req` (`-n`) **or** <br> `--max-time-for-reqs` (`--timeout`) | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
+| `--request-distribution` | Distribution for sending requests: <br> **eg:** `exponential 5` (request will follow an exponential distribution with an average time between requests of **5 seconds**) <br> options: <br> `poisson rate` <br> `uniform min_val max_val` <br> `normal mean std`. |
+| `--request-rate` (`-rps`) | Sets the request distribution to `poisson N`, such that approximately N requests are sent per second. |
 | `--input-token-distribution` | Request distribution for prompt length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--output-token-distribution` | Request distribution for output token length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
-| one of:<br>`--prefix-text`<br>`--prefix-len`<br>`--no-prefix` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. <br> No prefix for requests. |
-| `--dataset-name` | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
-| `--dataset-path` | Path to the dataset. |
-| `--model` | Name of the model. |
+| `--workload` (`-w`) | One of a few presets that define the input and output token distributions for common use-cases. |
+| one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
+| `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
+| `--dataset-path` | Path to the dataset. If `sharegpt` is the dataset and this is not provided, it will be automatically downloaded and cached. Otherwise, the dataset name will default to `other`. |
+| `--model` (`-m`) | Name of the model. |
 | `--tokenizer` | Name or path of the tokenizer, if not using the default tokenizer. |
 | `--disable-tqdm` | Specify to disable tqdm progress bar. |
 | `--best-of` | Number of best completions to return. |
 | `--use-beam-search` | Use beam search for completions. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
+| `--verbose` | Summarize each request. |
 | `--disable-ignore-eos` | Ignores end of sequence.<br> **Note:** Not valid argument for TensorRT-LLM |
 | `--disable-stream` | The requests are send with Stream: False. (Used for APIs without an stream option) |
 | `--cookies` | Include cookies in the request. |
 | `--config-file` | Path to configuration file. |
 
-**For ease of use we recommend passing a configuration file with all the required parameters for your use case. Examples are provided in `examples/`**
+In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
 
 ### Output
-The output json file in an array of objects that contain the following fields:<br>
-* `backend`: backend used
+
+In addition to printing the analysis results (which can be reproduced using `fib analyse`), the following output artifact is generated:
+
+The output json file contains metadata and a list of request input and output descriptions:<br>
+* `backend`: Backend used
 * `time`: Total time
 * `outputs`: 
     * `text`: Generated text
@@ -61,7 +67,7 @@ The output json file in an array of objects that contain the following fields:<b
 ### Data Postprocessors
 Below is a description of the data postprocessors.
 
-#### `fib analyse --datapath <path_to_file>`
+#### `fib analyse <path_to_file>`
 Prints the following output for a given run, same as vLLM.
 
 ```
@@ -83,12 +89,6 @@ Median TPOT (ms):                        2362.54
 P99 TPOT (ms):                           2750.76
 ==================================================
 ```
-
-Supports the following args:
-
-| argument | description |
-| --- | --- |
-| `--datapath` | Path to the output json file produced. |
 
 #### `fib generate-itl-plot`
 
@@ -117,33 +117,38 @@ You can install vllm with the command:<br>
 We will use gpt2 as the model<br>
 `vllm serve gpt2`
 
-Once the backend is up and running we can go to the examples folder and run the inference benchmark using vllm_args.json file <br>
-`cd examples`<br>
-`fib benchmark --config-file vllm_args.json --output-file vllm-benchmark.json`
+And now we can run the benchmark in the CLI:
 
-Then, you can see the results wit fib analyse<br>
-`fib analyse --datapath ../examples/vllm-benchmark.json` <br>
+```
+fib benchmark -n 500 -rps inf -w summary
+```
+
+Alternatively we can go to the examples folder and run the inference benchmark using a config file: 
+```
+cd examples
+fib benchmark --config-file summary_throughput.json --output-file vllm-benchmark.json
+```
 
 ```
 ============ Serving Benchmark Result ============
-Successful requests:                     20        
-Benchmark duration (s):                  4.15      
-Total input tokens:                      3836      
-Total generated tokens:                  4000      
-Request throughput (req/s):              4.82      
-Input token throughput (tok/s):          925.20    
-Output token throughput (tok/s):         964.76    
+Successful requests:                     497      
+Benchmark duration (s):                  5.09     
+Total input tokens:                      58605    
+Total generated tokens:                  126519   
+Request throughput (req/s):              97.66    
+Input token throughput (tok/s):          11516.12 
+Output token throughput (tok/s):         24861.49 
 ---------------Time to First Token----------------
-Mean TTFT (ms):                          19.91     
-Median TTFT (ms):                        22.11     
-P99 TTFT (ms):                           28.55     
+Mean TTFT (ms):                          1508.38  
+Median TTFT (ms):                        372.63   
+P99 TTFT (ms):                           2858.80  
 -----Time per Output Token (excl. 1st token)------
-Mean TPOT (ms):                          6.73      
-Median TPOT (ms):                        7.96      
-P99 TPOT (ms):                           8.41      
+Mean TPOT (ms):                          9.34     
+Median TPOT (ms):                        9.39     
+P99 TPOT (ms):                           10.23    
 ---------------Inter-token Latency----------------
-Mean ITL (ms):                           6.73      
-Median ITL (ms):                         7.40      
-P99 ITL (ms):                            20.70     
+Mean ITL (ms):                           9.35     
+Median ITL (ms):                         8.00     
+P99 ITL (ms):                            89.88    
 ==================================================
 ```
