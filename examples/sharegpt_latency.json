@@ -1,0 +1,6 @@
+{ 
+    "dataset_name": "sharegpt",
+    "num_of_req": 20,
+    "request_distribution": ["poisson", "inf"],
+    "max_concurrent": 1
+}
