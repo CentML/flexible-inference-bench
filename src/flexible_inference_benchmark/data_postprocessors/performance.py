@@ -22,7 +22,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     ttfts = []
     for i in range(len(outputs)):
         if outputs[i]["success"]:
-            if "output_len" in outputs[i]:
+            if "output_len" in outputs[i] and outputs[i]["output_len"] is not None:
                 output_len = outputs[i]["output_len"]
             else:
                 output_len = len(tokenizer(outputs[i]["generated_text"], add_special_tokens=False).input_ids)

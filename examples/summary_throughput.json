@@ -1,0 +1,5 @@
+{ 
+    "num_of_req": 500,
+    "request_distribution": ["poisson", "inf"],
+    "workload_type": "summary"
+}

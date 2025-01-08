@@ -2,11 +2,9 @@
     "backend": "tensorrt-llm",
     "base_url": "http://localhost:8000",
     "endpoint": "/v2/models/ensemble/generate_stream",
-    "dataset_name": "random",
     "input_token_distribution": ["normal", 200, 10],
     "output_token_distribution": ["uniform", 200, 201],
     "request_distribution": ["poisson", 5],
     "num_of_req": 20,
-    "model": "google/gemma-2b",
-    "tokenizer": "google/gemma-2b"
+    "model": "google/gemma-2b"
 }
