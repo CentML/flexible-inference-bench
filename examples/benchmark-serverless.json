@@ -3,8 +3,6 @@
     "base_url": "https://api.centml.com/",
     "endpoint": "openai/v1/chat/completions",
     "dataset_name": "sharegpt",
-    "output_token_distribution": ["uniform", 100, 101],
     "model": "meta-llama/Llama-3.3-70B-Instruct",
-    "tokenizer": "meta-llama/Llama-3.3-70B-Instruct",
-    "no_prefix": true
+    "tokenizer": "meta-llama/Llama-3.3-70B-Instruct"
 }

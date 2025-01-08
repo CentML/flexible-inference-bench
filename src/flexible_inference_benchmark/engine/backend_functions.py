@@ -396,6 +396,9 @@ async def async_request_openai_chat_completions(
 
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
+        import pdb
+
+        pdb.set_trace()
 
         generated_text = ""
         ttft = 0.0
