@@ -24,15 +24,11 @@ do
     datafile=fib_bench_serverless_poisson_$rate.json
     fib benchmark \
 	    --config-file $SCRIPT_DIR/benchmark-serverless.json \
-	    --dataset-pat ShareGPT_V3_unfiltered_cleaned_split.json \
-	    --request-rate $rate \
+	    -rps $rate \
 	    --output-file $datafile \
 	    --num-of-req $num_of_req
     if [ $? -ne 0 ]; then
         echo "fib command failed, exiting benchmarking"
         exit -1
     fi
-    
-    echo "Analysing benchmarking data at $datafile"
-    fib analyse --datapath $datafile
 done

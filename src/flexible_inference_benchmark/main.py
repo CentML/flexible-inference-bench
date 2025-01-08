@@ -348,7 +348,9 @@ def run_main(args: argparse.Namespace) -> None:
 
     set_max_open_files(min_length + 256)
 
-    args.api_url = f"{args.base_url}{args.endpoint}"
+    base_url = args.base_url.strip("/")
+    endpoint = args.endpoint.strip("/")
+    args.api_url = f"{base_url}/{endpoint}"
 
     client = Client(
         args.backend,
