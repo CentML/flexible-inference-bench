@@ -1,0 +1,8 @@
+{ 
+    "backend": "cserve-chat",
+    "base_url": "https://api.centml.com/",
+    "endpoint": "openai/v1/chat/completions",
+    "dataset_name": "sharegpt",
+    "model": "meta-llama/Llama-3.3-70B-Instruct",
+    "tokenizer": "meta-llama/Llama-3.3-70B-Instruct"
+}

@@ -614,6 +614,7 @@ ASYNC_REQUEST_FUNCS = {
     "tgi": async_request_tgi,
     "vllm": async_request_openai_completions,
     "cserve-debug": async_request_cserve_debug,
+    "cserve-chat": async_request_openai_chat_completions,
     "cserve": async_request_openai_completions,
     "lmdeploy": async_request_openai_completions,
     "deepspeed-mii": async_request_deepspeed_mii,
