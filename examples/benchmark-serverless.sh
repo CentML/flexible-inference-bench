@@ -11,8 +11,6 @@ pip install -e .
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-ulimit -n 100000
-
 for rate in 0.2 0.5 1 2 5 10
 do
     if (( $(echo "$rate >= 2" | bc -l) )); then
@@ -31,4 +29,5 @@ do
         echo "fib command failed, exiting benchmarking"
         exit -1
     fi
+    echo "Benchmarking results for the above run is stored under $datafile"
 done
