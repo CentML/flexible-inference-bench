@@ -55,7 +55,7 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
 def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
-    if args.dataset_name == 'sharegpt':
+    if args.dataset_name.startswith('sharegpt'):
         logger.info(
             "User selected sharegpt dataset. "
             "Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
@@ -203,7 +203,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--dataset",
         type=str,
         default="random",
-        choices=["sharegpt", "other", "random"],
+        choices=["sharegpt", "sharegpt_code", "other", "random"],
         help="Name of the dataset to benchmark on.",
     )
 
@@ -303,20 +303,21 @@ def parse_args() -> argparse.Namespace:
         if args.endpoint and args.endpoint[0] != '/':
             args.endpoint = "/" + args.endpoint
 
-        if not args.dataset_path and args.dataset_name == 'sharegpt':
+        if not args.dataset_path and args.dataset_name.startswith('sharegpt'):
             # download the sharegpt dataset and cache it in the home directory
             cache_dir = os.path.expanduser("~/.cache/flexible_inference_benchmark/")
+            dataset_filename = args.dataset_name + ".json"
             if not os.path.exists(cache_dir):
                 os.makedirs(cache_dir)
-            sharegpt_path = os.path.join(cache_dir, "sharegpt.json")
+            sharegpt_path = os.path.join(cache_dir, dataset_filename)
             if not os.path.exists(sharegpt_path):
                 logger.info(
-                    "Downloading the sharegpt dataset to ~/.cache/flexible_inference_benchmark/sharegpt.json ..."
+                    "Downloading the sharegpt dataset to ~/.cache/flexible_inference_benchmark/%s ...", dataset_filename
                 )
-                download_sharegpt_dataset(sharegpt_path)
+                download_sharegpt_dataset(args.dataset_name, sharegpt_path)
             args.dataset_path = sharegpt_path
 
-        if args.dataset_name == 'sharegpt' and args.workload_type:
+        if args.dataset_name.startswith('sharegpt') and args.workload_type:
             fail(
                 "ShareGPT dataset is selected. "
                 "Prompt and output distributions will be ignored. "
