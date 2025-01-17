@@ -213,7 +213,7 @@ class ShareGPT(Data):
         with open(filename) as f:
             dataset = json.load(f)
 
-        dataset = [data for data in dataset if len(data["conversations"]) > 2]
+        dataset = [data for data in dataset if len(data["conversations"]) >= 2]
 
         sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
             data["conversations"][1]["value"] for data in dataset
