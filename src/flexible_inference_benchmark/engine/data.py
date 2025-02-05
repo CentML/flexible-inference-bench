@@ -3,10 +3,12 @@ from typing import List, Tuple
 import logging
 import json
 import random
-import transformers
-from flexible_inference_benchmark.engine import distributions
 import os
 from hashlib import sha256
+
+import transformers
+from flexible_inference_benchmark.engine import distributions
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,8 +40,10 @@ def get_data_end(
 
     return idy
 
+
 def hash_string(s: str) -> str:
     return sha256(s.encode()).hexdigest()
+
 
 class Data(abc.ABC):
     @abc.abstractmethod
@@ -227,16 +231,11 @@ class ShareGPT(Data):
                 length_cache = json.load(fcache)
         except (FileNotFoundError, json.JSONDecodeError):
             length_cache = {}
-        
-        sequences_to_encode = [
-            data["conversations"][0]["value"] for data in dataset
-        ] + [
+
+        sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
             data["conversations"][1]["value"] for data in dataset
         ]
-        all_in_cache = (
-            len(length_cache) > 0
-            and all(hash_string(seq) in length_cache for seq in sequences_to_encode)
-        )
+        all_in_cache = len(length_cache) > 0 and all(hash_string(seq) in length_cache for seq in sequences_to_encode)
         if not all_in_cache:
             encoded = tokenizer(sequences_to_encode)
             for i, seq in enumerate(sequences_to_encode):
@@ -245,11 +244,7 @@ class ShareGPT(Data):
                 json.dump(length_cache, fcache)
         results_input_ids = [length_cache[hash_string(seq)] for seq in sequences_to_encode]
         tokenized_dataset = [
-            (
-                dataset[i]["conversations"][0]["value"],
-                results_input_ids[i],
-                results_input_ids[i + len(dataset)]
-            )
+            (dataset[i]["conversations"][0]["value"], results_input_ids[i], results_input_ids[i + len(dataset)])
             for i in range(len(dataset))
         ]
 
