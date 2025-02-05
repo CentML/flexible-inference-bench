@@ -3,6 +3,9 @@ from typing import List, Tuple
 import logging
 import json
 import random
+import os
+from hashlib import sha256
+
 import transformers
 from flexible_inference_benchmark.engine import distributions
 
@@ -36,6 +39,10 @@ def get_data_end(
         logger.debug(f"Tried to achieve length {length} but failed. Achieved length {get_length(idx, idy)} instead")
 
     return idy
+
+
+def hash_string(s: str) -> str:
+    return sha256(s.encode()).hexdigest()
 
 
 class Data(abc.ABC):
@@ -215,16 +222,29 @@ class ShareGPT(Data):
 
         dataset = [data for data in dataset if len(data["conversations"]) >= 2]
 
+        tokenizer_id = tokenizer.name_or_path.replace("/", "_")
+        cache_path = os.path.join(
+            os.path.expanduser("~/.cache/flexible_inference_benchmark/"), f"sharegpt_sizes_{tokenizer_id}.json"
+        )
+        try:
+            with open(cache_path, "r") as fcache:
+                length_cache = json.load(fcache)
+        except (FileNotFoundError, json.JSONDecodeError):
+            length_cache = {}
+
         sequences_to_encode = [data["conversations"][0]["value"] for data in dataset] + [
             data["conversations"][1]["value"] for data in dataset
         ]
-        results = tokenizer(sequences_to_encode)
+        all_in_cache = len(length_cache) > 0 and all(hash_string(seq) in length_cache for seq in sequences_to_encode)
+        if not all_in_cache:
+            encoded = tokenizer(sequences_to_encode)
+            for i, seq in enumerate(sequences_to_encode):
+                length_cache[hash_string(seq)] = len(encoded.input_ids[i])
+            with open(cache_path, "w") as fcache:
+                json.dump(length_cache, fcache)
+        results_input_ids = [length_cache[hash_string(seq)] for seq in sequences_to_encode]
         tokenized_dataset = [
-            (
-                dataset[i]["conversations"][0]["value"],
-                len(results.input_ids[i]),
-                len(results.input_ids[i + len(dataset)]),
-            )
+            (dataset[i]["conversations"][0]["value"], results_input_ids[i], results_input_ids[i + len(dataset)])
             for i in range(len(dataset))
         ]
 
@@ -235,6 +255,8 @@ class ShareGPT(Data):
         ]
 
         self.data = filtered_dataset
+
+        logger.info("Loaded ShareGPT dataset.")
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         if len(self.data) < size:
