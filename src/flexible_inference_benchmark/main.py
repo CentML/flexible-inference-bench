@@ -58,12 +58,12 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
     if args.dataset_name.startswith('sharegpt'):
         logger.info(
             "User selected sharegpt dataset. "
-            "Ignoring prompt and output length distribution and following the shapes from the dataset.\n"
+            "Ignoring prompt and output length distribution and following the shapes from the dataset."
         )
         prompt_cls = ShareGPT(filename, tokenizer)
     else:
         logger.info(
-            f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions"
+            f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."
         )
         input_prompt_dist = select_distribution(args.input_token_distribution)
         output_token_dist = select_distribution(args.output_token_distribution)
@@ -370,11 +370,13 @@ def run_main(args: argparse.Namespace) -> None:
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
     client_verbose_value = client.verbose
     client.verbose = False
+    logger.info("Sending a single request for validation.")
     validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0]))
     if not validate_endpoint.success:
         logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
         sys.exit()
     client.verbose = client_verbose_value
+    logger.info("Beginning benchmark.")
     t = time.perf_counter()
     output_list: List[Any] = send_requests(client, requests_prompts, requests_times)
     benchmark_time = time.perf_counter() - t
