@@ -22,6 +22,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--base-url` | Server or API base url, without endpoint. |
 | `--endpoint` | API endpoint path. |
 | one of <br> `--num-of-req` (`-n`) **or** <br> `--max-time-for-reqs` (`--timeout`) | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
+| `--max-concurrent` | Limit for the number of concurrent in-flight requests |
 | `--request-distribution` | Distribution for sending requests: <br> **eg:** `exponential 5` (request will follow an exponential distribution with an average time between requests of **5 seconds**) <br> options: <br> `poisson rate` <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--request-rate` (`-rps`) | Sets the request distribution to `poisson N`, such that approximately N requests are sent per second. |
 | `--input-token-distribution` | Request distribution for prompt length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
