@@ -15,7 +15,8 @@ dependencies = [
     "sentencepiece",
     "aiohttp",
     "pydantic",
-    "matplotlib"
+    "matplotlib",
+    "datasets"
 ]
 
 classifiers = [

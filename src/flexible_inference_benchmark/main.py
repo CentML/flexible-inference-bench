@@ -62,7 +62,7 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
         )
         prompt_cls = ShareGPT(filename, tokenizer)
     elif args.dataset_name.startswith('json'):
-        prompt_cls = JSONModeEval(tokenizer)
+        prompt_cls = JSONModeEval(4096, tokenizer)
     else:
         logger.info(
             f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."

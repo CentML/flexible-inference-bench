@@ -70,8 +70,7 @@ class Client:
 
         request_func_inputs = [
             RequestFuncInput(
-                prompt=data_sample[0].prompt,
-                messages=data_sample[0].messages,
+                prompt_data=data_sample[0],
                 api_url=self.api_url,
                 prompt_len=data_sample[1],
                 output_len=data_sample[2],
@@ -97,8 +96,7 @@ class Client:
 
     async def validate_url_endpoint(self, request: Tuple[RequestPrompt, int, int]) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
-            prompt=request[0].prompt,
-            messages=request[0].messages,
+            prompt_data=request[0],
             api_url=self.api_url,
             prompt_len=request[1],
             output_len=request[2],

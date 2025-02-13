@@ -266,17 +266,20 @@ class ShareGPT(Data):
             return self.data
         return random.sample(RequestPrompt.from_prompt(self.data), size)
 
+# fib benchmark -n 10 -rps 2 --dataset json --disable-ignore-eos --backend openai-chat --endpoint v1/chat/completions
 class JSONModeEval(Data):
-    def __init__(self, tokenizer: transformers.PreTrainedTokenizer) -> None:
+    def __init__(self, max_seq_len: int, tokenizer: transformers.PreTrainedTokenizer) -> None:
         from datasets import load_dataset
+        import json
         ds = load_dataset("NousResearch/json-mode-eval")["train"]
         data_list = []
         for row in ds:
-            messages = row["prompt"]  # Already in the expected format or JSON-parse as needed
-            rp = RequestPrompt.from_messages(messages)
+            messages = row["prompt"]
+            schema = json.loads(row["schema"])
+            rp = RequestPrompt.from_messages(messages, schema=schema)
             prompt_len = len(tokenizer.encode(rp.prompt))
             output_len = len(tokenizer.encode(row["completion"]))
-            data_list.append((rp, prompt_len, output_len))
+            data_list.append((rp, prompt_len, max_seq_len))
 
         self.data = data_list
         logger.info("Loaded JSON Mode Eval dataset.")

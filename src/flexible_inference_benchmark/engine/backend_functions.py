@@ -20,24 +20,25 @@ class bcolors:
 class RequestPrompt(BaseModel):
     prompt: str
     messages: List[Dict[str, str]]
+    guided_schema: Optional[dict] = None
 
     @classmethod
-    def from_prompt(cls, prompt: str) -> "RequestPrompt":
-        return cls(prompt=prompt, messages=[{"role": "user", "content": prompt}])
+    def from_prompt(cls, prompt: str, schema: Optional[dict] = None) -> "RequestPrompt":
+        return cls(prompt=prompt, messages=[{"role": "user", "content": prompt}], guided_schema=schema)
     
     @classmethod
-    def from_messages(cls, messages: List[Dict[str, str]]) -> "RequestPrompt":
+    def from_messages(cls, messages: List[Dict[str, str]], schema: Optional[dict] = None) -> "RequestPrompt":
         prompt = ""
         if len(messages) == 1:
             prompt = messages[0]["content"]
         else:
             for message in messages:
                 prompt += f"{message['role']}: {message['content']}\n\n --- \n\n"
-        return cls(prompt=prompt, messages=messages)
+            prompt += "assistant: "
+        return cls(prompt=prompt, messages=messages, guided_schema=schema)
 
 class RequestFuncInput(BaseModel):
-    prompt: str
-    messages: List[Dict[str, str]]
+    prompt_data: RequestPrompt
     api_url: str
     prompt_len: int
     output_len: int
@@ -76,7 +77,7 @@ async def async_request_tgi(
             "temperature": 0.01,  # TGI does not accept 0.0 temperature.
             "top_p": 0.99,  # TGI does not accept 1.0 top_p.
         }
-        payload = {"inputs": request_func_input.prompt, "parameters": params}
+        payload = {"inputs": request_func_input.prompt_data.prompt, "parameters": params}
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
@@ -140,7 +141,7 @@ async def async_request_trt_llm(
         assert request_func_input.best_of == 1
         payload = {
             "accumulate_tokens": True,
-            "text_input": request_func_input.prompt,
+            "text_input": request_func_input.prompt_data.prompt,
             "temperature": 0.01,  # does not support 0.0 as of NGC container version 24.06
             "top_p": 1.0,
             "max_tokens": request_func_input.output_len,
@@ -209,7 +210,7 @@ async def async_request_deepspeed_mii(
         assert not request_func_input.use_beam_search
 
         payload = {
-            "prompt": request_func_input.prompt,
+            "prompt": request_func_input.prompt_data.prompt,
             "max_tokens": request_func_input.output_len,
             "temperature": 0.01,  # deepspeed-mii does not accept 0.0 temp.
             "top_p": 1.0,
@@ -266,7 +267,7 @@ async def async_request_openai_completions(
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
                 "model": request_func_input.model,
-                "prompt": request_func_input.prompt,
+                "prompt": request_func_input.prompt_data.prompt,
                 "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
@@ -346,7 +347,7 @@ async def async_request_openai_completions(
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
                 "model": request_func_input.model,
-                "prompt": request_func_input.prompt,
+                "prompt": request_func_input.prompt_data.prompt,
                 "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
@@ -404,12 +405,14 @@ async def async_request_openai_chat_completions(
         assert not request_func_input.use_beam_search
         payload = {
             "model": request_func_input.model,
-            "messages": request_func_input.messages if request_func_input.messages is not None else [{"role": "user", "content": request_func_input.prompt}],
+            "messages": request_func_input.prompt_data.messages,
             "temperature": 0.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
             "ignore_eos": request_func_input.ignore_eos,
         }
+        if request_func_input.prompt_data.guided_schema is not None:
+            payload["response_format"] = {"type": "json_object"}
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
         output = RequestFuncOutput()
@@ -487,7 +490,7 @@ async def async_request_cserve_debug(
     if request_func_input.stream:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
-                "prompt": request_func_input.prompt,
+                "prompt": request_func_input.prompt_data.prompt,
                 "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
@@ -551,7 +554,7 @@ async def async_request_cserve_debug(
     else:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
-                "prompt": request_func_input.prompt,
+                "prompt": request_func_input.prompt_data.prompt,
                 "sampling_params": {
                     "n": 1,
                     "temperature": 0,
