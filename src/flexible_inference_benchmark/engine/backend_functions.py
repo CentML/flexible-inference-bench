@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import traceback
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple, Union
 from pydantic import BaseModel, Field
 import aiohttp
 from tqdm.asyncio import tqdm
@@ -17,9 +17,27 @@ class bcolors:
     OKGREEN = '\033[92m'
     ENDC = '\033[0m'
 
+class RequestPrompt(BaseModel):
+    prompt: str
+    messages: List[Dict[str, str]]
+
+    @classmethod
+    def from_prompt(cls, prompt: str) -> "RequestPrompt":
+        return cls(prompt=prompt, messages=[{"role": "user", "content": prompt}])
+    
+    @classmethod
+    def from_messages(cls, messages: List[Dict[str, str]]) -> "RequestPrompt":
+        prompt = ""
+        if len(messages) == 1:
+            prompt = messages[0]["content"]
+        else:
+            for message in messages:
+                prompt += f"{message['role']}: {message['content']}\n\n --- \n\n"
+        return cls(prompt=prompt, messages=messages)
 
 class RequestFuncInput(BaseModel):
     prompt: str
+    messages: List[Dict[str, str]]
     api_url: str
     prompt_len: int
     output_len: int
@@ -386,7 +404,7 @@ async def async_request_openai_chat_completions(
         assert not request_func_input.use_beam_search
         payload = {
             "model": request_func_input.model,
-            "messages": [{"role": "user", "content": request_func_input.prompt}],
+            "messages": request_func_input.messages if request_func_input.messages is not None else [{"role": "user", "content": request_func_input.prompt}],
             "temperature": 0.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,

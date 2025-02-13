@@ -19,9 +19,9 @@ from flexible_inference_benchmark.utils.utils import (
     set_max_open_files,
     download_sharegpt_dataset,
 )
-from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
+from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random, JSONModeEval
 from flexible_inference_benchmark.engine.client import Client
-from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
+from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS, RequestPrompt
 from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
@@ -52,7 +52,7 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[str, int, int]]:
+def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[RequestPrompt, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name.startswith('sharegpt'):
@@ -61,6 +61,8 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
             "Ignoring prompt and output length distribution and following the shapes from the dataset."
         )
         prompt_cls = ShareGPT(filename, tokenizer)
+    elif args.dataset_name.startswith('json'):
+        prompt_cls = JSONModeEval(tokenizer)
     else:
         logger.info(
             f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."
@@ -203,7 +205,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--dataset",
         type=str,
         default="random",
-        choices=["sharegpt", "sharegpt_code", "other", "random"],
+        choices=["sharegpt", "sharegpt_code", "other", "random", "json"],
         help="Name of the dataset to benchmark on.",
     )
 
@@ -385,7 +387,7 @@ def run_main(args: argparse.Namespace) -> None:
         "backend": args.backend,
         "time": benchmark_time,
         "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-        "inputs": requests_prompts,
+        "inputs": [(x.prompt, y, z) for x, y, z in requests_prompts],
         "tokenizer": args.tokenizer if args.tokenizer else args.model,
         "stream": not args.disable_stream,
     }

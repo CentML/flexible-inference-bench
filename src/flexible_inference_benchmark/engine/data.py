@@ -8,7 +8,9 @@ from hashlib import sha256
 
 import transformers
 from flexible_inference_benchmark.engine import distributions
-
+from flexible_inference_benchmark.engine.backend_functions import (
+    RequestPrompt,
+)
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,7 @@ def hash_string(s: str) -> str:
 
 class Data(abc.ABC):
     @abc.abstractmethod
-    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
         pass
 
 
@@ -110,7 +112,7 @@ class Textfile(Data):
             data[prefix_end:], prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials
         )
 
-    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
         # Can save memory by using a generator. However for performance we will use a list
         input_data = []
         lengths = self.prefill_distribution.generate_distribution(size)
@@ -135,7 +137,7 @@ class Textfile(Data):
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
-        return random.sample(input_data, size)
+        return random.sample(RequestPrompt.from_prompt(input_data), size)
 
 
 class Random(Data):
@@ -188,7 +190,7 @@ class Random(Data):
             prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
         )
 
-    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
         input_data = []
         lengths = self.prefill_distribution.generate_distribution(size)
         output_tokens = self.output_token_distribution.generate_distribution(size)
@@ -208,7 +210,7 @@ class Random(Data):
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
-        return random.sample(input_data, size)
+        return random.sample(RequestPrompt.from_prompt(input_data), size)
 
 
 class ShareGPT(Data):
@@ -258,7 +260,28 @@ class ShareGPT(Data):
 
         logger.info("Loaded ShareGPT dataset.")
 
-    def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
+    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+        if len(self.data) < size:
+            logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
+            return self.data
+        return random.sample(RequestPrompt.from_prompt(self.data), size)
+
+class JSONModeEval(Data):
+    def __init__(self, tokenizer: transformers.PreTrainedTokenizer) -> None:
+        from datasets import load_dataset
+        ds = load_dataset("NousResearch/json-mode-eval")["train"]
+        data_list = []
+        for row in ds:
+            messages = row["prompt"]  # Already in the expected format or JSON-parse as needed
+            rp = RequestPrompt.from_messages(messages)
+            prompt_len = len(tokenizer.encode(rp.prompt))
+            output_len = len(tokenizer.encode(row["completion"]))
+            data_list.append((rp, prompt_len, output_len))
+
+        self.data = data_list
+        logger.info("Loaded JSON Mode Eval dataset.")
+
+    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
         if len(self.data) < size:
             logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data
