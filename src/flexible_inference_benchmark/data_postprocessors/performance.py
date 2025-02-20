@@ -6,14 +6,15 @@ import json
 import argparse
 import numpy as np
 from transformers import AutoTokenizer
-
+from datetime import datetime
 
 def add_performance_parser(subparsers: argparse._SubParsersAction) -> None:
     performance_parser = subparsers.add_parser('analyse', help="Summarize the performance of a benchmark record")
     performance_parser.add_argument("datapath", type=str, help='Path to the json file')
+    performance_parser.add_argument("--export-json", action="store_true", help="Save information as json [performance_data_timestamp.json]")
 
 
-def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream) -> None:
+def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream, export_json=False) -> None:
     actual_output_lens = []
     total_input = 0
     completed = 0
@@ -74,9 +75,31 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
         print("{:<40} {:<10.2f}".format("P99 ITL (ms):", p99_itl_ms))
         print("=" * 50)
 
+    if export_json:
+        data = {
+            "successful_requests": completed,
+            "duration": benchmark_duration,
+            "total_input_tokens": total_input,
+            "total_generated_tokens": total_output,
+            "request_throughput": request_throughput,
+            "input_token_throughput": input_throughput,
+            "output_token_throughput": output_throughput,
+            "mean_ttft": mean_ttft_ms,
+            "median_ttft": median_ttft_ms,
+            "p99_ttft": p99_ttft_ms,
+            "mean_tpot": mean_tpot_ms,
+            "median_tpot": median_tpot_ms,
+            "p99_tpot": p99_tpot_ms,
+            "mean_itl": mean_itl_ms,
+            "median_itl": median_itl_ms,
+            "p99_itl": p99_itl_ms
+        }
+        filename=f"performance_data_{datetime.now().strftime('%m_%d_%Y_%H_%M_%S')}.json"
+        with open(filename,"w") as f:
+            json.dump(data, f, indent=3)
 
 def run(args: argparse.Namespace):
     with open(args.datapath, 'r') as f:
         data = json.load(f)
     tokenizer = AutoTokenizer.from_pretrained(data["tokenizer"])
-    calculate_metrics(data["inputs"], data["outputs"], data["time"], tokenizer, data["stream"])
+    calculate_metrics(data["inputs"], data["outputs"], data["time"], tokenizer, data["stream"], args.export_json)
