@@ -6,12 +6,11 @@ import json
 import argparse
 import numpy as np
 from transformers import AutoTokenizer
-from datetime import datetime
 
 def add_performance_parser(subparsers: argparse._SubParsersAction) -> None:
     performance_parser = subparsers.add_parser('analyse', help="Summarize the performance of a benchmark record")
     performance_parser.add_argument("datapath", type=str, help='Path to the json file')
-    performance_parser.add_argument("--export-json", action="store_true", help="Save information as json [performance_data_timestamp.json]")
+    performance_parser.add_argument("--export-json", action="store_true", help="Save information as json [performance_data.json]")
 
 
 def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream, export_json=False) -> None:
@@ -94,7 +93,7 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
             "median_itl": median_itl_ms,
             "p99_itl": p99_itl_ms
         }
-        filename=f"performance_data_{datetime.now().strftime('%m_%d_%Y_%H_%M_%S')}.json"
+        filename="performance_data.json"
         with open(filename,"w") as f:
             json.dump(data, f, indent=3)
 
