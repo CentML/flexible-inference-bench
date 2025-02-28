@@ -128,7 +128,7 @@ class Textfile(Data):
 
             input_data.append(
                 (
-                    self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
+                    RequestPrompt.from_prompt(self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end])),
                     achieved_len,
                     output_tokens[i],
                 )
@@ -137,7 +137,7 @@ class Textfile(Data):
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
-        return random.sample(RequestPrompt.from_prompt(input_data), size)
+        return random.sample(input_data, size)
 
 
 class Random(Data):
@@ -204,13 +204,13 @@ class Random(Data):
             achieved_len = prompt_end + prefix_len
 
             input_data.append(
-                (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])
+                (RequestPrompt.from_prompt(self.prefix_str + self.tokenizer.decode(data[:prompt_end])), achieved_len, output_tokens[i])
             )
 
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
-        return random.sample(RequestPrompt.from_prompt(input_data), size)
+        return random.sample(input_data, size)
 
 
 class ShareGPT(Data):
@@ -251,7 +251,7 @@ class ShareGPT(Data):
         ]
 
         filtered_dataset = [
-            (prompt_str, prompt_len, output_len)
+            (RequestPrompt.from_prompt(prompt_str), prompt_len, output_len)
             for prompt_str, prompt_len, output_len in tokenized_dataset
             if (prompt_len > 4 and output_len > 4)
         ]
@@ -264,7 +264,7 @@ class ShareGPT(Data):
         if len(self.data) < size:
             logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data
-        return random.sample(RequestPrompt.from_prompt(self.data), size)
+        return random.sample(self.data, size)
 
 # fib benchmark -n 10 -rps 2 --dataset json --disable-ignore-eos --backend openai-chat --endpoint v1/chat/completions
 class JSONModeEval(Data):
