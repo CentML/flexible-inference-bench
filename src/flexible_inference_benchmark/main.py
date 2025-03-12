@@ -203,7 +203,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         type=int,
         nargs=3,
         dest="wave",
-        help="Send requests at a varying request concurrency, increasing when the lowerbound rate is hit, and decreasing when the upperbound rate is hit",
+        help="Send requests at a varying request concurrency in a wave-like pattern",
     )
 
     prefix_group = benchmark_parser.add_mutually_exclusive_group()
