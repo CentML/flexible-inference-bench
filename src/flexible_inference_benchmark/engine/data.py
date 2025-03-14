@@ -1,5 +1,5 @@
 import abc
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import logging
 import json
 import random
@@ -9,7 +9,7 @@ from hashlib import sha256
 import transformers
 from flexible_inference_benchmark.engine import distributions
 from flexible_inference_benchmark.engine.backend_functions import (
-    RequestPrompt,
+    RequestPromptData,
 )
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def hash_string(s: str) -> str:
 
 class Data(abc.ABC):
     @abc.abstractmethod
-    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+    def generate_data(self, size: int) -> List[RequestPromptData]:
         pass
 
 
@@ -59,13 +59,11 @@ class Textfile(Data):
         data: List[int],
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int,
     ) -> None:
         self.prefix_str = prefix_str
         self.prefill_distribution = prefill_distribution
-        self.output_token_distribution = output_token_distribution
         self.start_distribution = distributions.AdjustedUniformInt(0, len(data) - num_trials)
         self.tokenizer = tokenizer
         self.data = data
@@ -77,7 +75,6 @@ class Textfile(Data):
         filename: str,
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int = 10,
     ) -> "Textfile":
@@ -85,7 +82,7 @@ class Textfile(Data):
             text = f.read()
         data = tokenizer.encode(text)
 
-        return cls(data, prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials)
+        return cls(data, prefix_str, prefill_distribution, tokenizer, num_trials)
 
     @classmethod
     def with_prefix_len(
@@ -93,7 +90,6 @@ class Textfile(Data):
         filename: str,
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int = 10,
     ) -> "Textfile":
@@ -109,14 +105,13 @@ class Textfile(Data):
         prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
 
         return cls(
-            data[prefix_end:], prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials
+            data[prefix_end:], prefix_str, prefill_distribution, tokenizer, num_trials
         )
 
-    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+    def generate_data(self, size: int) -> List[RequestPromptData]:
         # Can save memory by using a generator. However for performance we will use a list
         input_data = []
         lengths = self.prefill_distribution.generate_distribution(size)
-        output_tokens = self.output_token_distribution.generate_distribution(size)
         starts = self.start_distribution.generate_distribution(lengths)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
@@ -124,15 +119,9 @@ class Textfile(Data):
             if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                 continue
             prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
-            achieved_len = (prompt_end - starts[i]) + prefix_len
 
-            input_data.append(
-                (
-                    RequestPrompt.from_prompt(self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end])),
-                    achieved_len,
-                    output_tokens[i],
-                )
-            )
+            input_data.append(RequestPromptData.from_completion_string(
+                self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end], tokenizer=self.tokenizer)))
 
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
@@ -146,14 +135,12 @@ class Random(Data):
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
         token_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int,
     ) -> None:
         self.tokenizer = tokenizer
         self.prefill_distribution = prefill_distribution
         self.token_distribution = token_distribution
-        self.output_token_distribution = output_token_distribution
         self.prefix_str = prefix_str
         self.num_trials = num_trials
 
@@ -162,14 +149,13 @@ class Random(Data):
         cls,
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int = 10,
     ) -> "Random":
         token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
 
         return cls(
-            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+            prefix_str, prefill_distribution, token_distribution, tokenizer, num_trials
         )
 
     @classmethod
@@ -177,7 +163,6 @@ class Random(Data):
         cls,
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
-        output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int = 10,
     ) -> "Random":
@@ -187,13 +172,12 @@ class Random(Data):
         prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
 
         return cls(
-            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+            prefix_str, prefill_distribution, token_distribution, tokenizer, num_trials
         )
 
-    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+    def generate_data(self, size: int) -> List[RequestPromptData]:
         input_data = []
         lengths = self.prefill_distribution.generate_distribution(size)
-        output_tokens = self.output_token_distribution.generate_distribution(size)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
         for i in range(size):
@@ -201,14 +185,12 @@ class Random(Data):
             if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                 continue
             prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
-            achieved_len = prompt_end + prefix_len
 
-            input_data.append(
-                (RequestPrompt.from_prompt(self.prefix_str + self.tokenizer.decode(data[:prompt_end])), achieved_len, output_tokens[i])
-            )
+            input_data.append(RequestPromptData.from_completion_string(
+                self.prefix_str + self.tokenizer.decode(data[:prompt_end], self.tokenizer)))
 
         if len(input_data) < size:
-            logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
+            logger.warning(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
         return random.sample(input_data, size)
 
@@ -250,8 +232,10 @@ class ShareGPT(Data):
             for i in range(len(dataset))
         ]
 
+        # TODO: fix this
+        # TODO: make sure output distribution gets calculated
         filtered_dataset = [
-            (RequestPrompt.from_prompt(prompt_str), prompt_len, output_len)
+            RequestPromptData.from_completion_string(prompt_str, tokenizer)
             for prompt_str, prompt_len, output_len in tokenized_dataset
             if (prompt_len > 4 and output_len > 4)
         ]
@@ -260,7 +244,7 @@ class ShareGPT(Data):
 
         logger.info("Loaded ShareGPT dataset.")
 
-    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+    def generate_data(self, size: int) -> List[RequestPromptData]:
         if len(self.data) < size:
             logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data
@@ -276,15 +260,12 @@ class JSONModeEval(Data):
         for row in ds:
             messages = row["prompt"]
             schema = json.loads(row["schema"])
-            rp = RequestPrompt.from_messages(messages, schema=schema)
-            prompt_len = len(tokenizer.encode(rp.prompt))
-            output_len = len(tokenizer.encode(row["completion"]))
-            data_list.append((rp, prompt_len, max_seq_len))
+            data_list.append(RequestPromptData.from_chat_messages(messages, tokenizer, row["completion"], schema=schema))
 
         self.data = data_list
         logger.info("Loaded JSON Mode Eval dataset.")
 
-    def generate_data(self, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+    def generate_data(self, size: int) -> List[RequestPromptData]:
         if len(self.data) < size:
             logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data

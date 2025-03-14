@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Tuple, Union
 from pydantic import BaseModel, Field
 import aiohttp
 from tqdm.asyncio import tqdm
+import transformers
 
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
 
@@ -17,30 +18,84 @@ class bcolors:
     OKGREEN = '\033[92m'
     ENDC = '\033[0m'
 
-class RequestPrompt(BaseModel):
-    prompt: str
-    messages: List[Dict[str, str]]
-    guided_schema: Optional[dict] = None
+class RequestPromptData(BaseModel):
+    """Prompt information as loaded from the source dataset.
+    
+    This class is a wrapper that combines chat-style 'messages' and
+    completion-style prompt strings. The 'prompt' field is the string
+    and the 'messages' field is a list of dictionaries with 'role' and
+    'content' keys. This is useful for chat-style datasets where the
+    prompt is a list of messages from different roles.
+
+    Tokenized lengths of the prompt in completions and chat styles are both
+    cached, as well as the expected completion from the dataset.
+    """
+    completion_prompt_str: str
+    chat_prompt_messages: List[Dict[str, str]]
+
+    completion_prompt_num_tokens: int
+    chat_prompt_num_tokens: int
+
+    # Expected completion such as from structured output datasets.
+    # ShareGPT example completions are also stored here.
+    expected_completion: Optional[str] = None
+    expected_completion_num_tokens: Optional[int] = None
+
+    # Optional structured schema specified by the dataset.
+    structured_json_schema: Optional[dict] = None
 
     @classmethod
-    def from_prompt(cls, prompt: str, schema: Optional[dict] = None) -> "RequestPrompt":
-        return cls(prompt=prompt, messages=[{"role": "user", "content": prompt}], guided_schema=schema)
+    def _from_both(cls,
+                            prompt: str,
+                            messages: List[Dict[str, str]],
+                            tokenizer: transformers.PreTrainedTokenizer,
+                            expected_completion: Optional[str] = None,
+                            structured_json_schema: Optional[dict] = None
+                            ) -> "RequestPromptData":
+        """Compute tokenized metadata and create a RequestPromptData class."""
+        return cls(completion_prompt_str=prompt,
+                   chat_prompt_messages=messages,
+                   completion_prompt_num_tokens=len(tokenizer(prompt)["input_ids"]),
+                   chat_prompt_num_tokens=len(tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=True)),
+                   expected_completion=expected_completion,
+                   expected_completion_num_tokens=len(tokenizer(expected_completion)["input_ids"]) if expected_completion else None,
+                   structured_json_schema=structured_json_schema)
+
+    @classmethod
+    def from_completion_string(cls,
+                               prompt: str,
+                               tokenizer: transformers.PreTrainedTokenizer,
+                               expected_completion: Optional[str] = None,
+                               structured_json_schema: Optional[dict] = None
+                               ) -> "RequestPromptData":
+        """Create a RequestPromptData object from a completion-style prompt string."""
+        return cls._from_both(prompt, 
+                                [{"role": "user", "content": prompt}],
+                                tokenizer,
+                                expected_completion=expected_completion,
+                                structured_json_schema=structured_json_schema)
     
     @classmethod
-    def from_messages(cls, messages: List[Dict[str, str]], schema: Optional[dict] = None) -> "RequestPrompt":
-        prompt = ""
-        if len(messages) == 1:
-            prompt = messages[0]["content"]
-        else:
-            for message in messages:
-                prompt += f"{message['role']}: {message['content']}\n\n --- \n\n"
-            prompt += "assistant: "
-        return cls(prompt=prompt, messages=messages, guided_schema=schema)
+    def from_chat_messages(cls,
+                           messages: List[Dict[str, str]],
+                           tokenizer: transformers.PreTrainedTokenizer,
+                           expected_completion: Optional[str] = None,
+                           structured_json_schema: Optional[dict] = None) -> "RequestPromptData":
+        """
+        Create a RequestPromptData object from a chat-style list of messages.
+        When used with completion-style endpoints, the chat-templated prompt
+        string will be used.
+        """
+        return cls._from_both(tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False),
+                                messages,
+                                tokenizer,
+                                expected_completion=expected_completion,
+                                structured_json_schema=structured_json_schema)
+
 
 class RequestFuncInput(BaseModel):
-    prompt_data: RequestPrompt
+    prompt: RequestPromptData
     api_url: str
-    prompt_len: int
     output_len: int
     model: str
     best_of: int = 1
@@ -50,7 +105,7 @@ class RequestFuncInput(BaseModel):
     stream: bool = True
     cookies: Dict[str, str]
     logprobs: Optional[int] = None
-
+    enforce_json: bool = False
 
 class RequestFuncOutput(BaseModel):
     generated_text: str = ""

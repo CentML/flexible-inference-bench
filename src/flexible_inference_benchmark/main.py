@@ -7,7 +7,7 @@ import itertools
 import sys
 import os
 import time
-from typing import List, Any, Tuple, Union
+from typing import List, Any, Tuple, Union, Optional
 import requests
 import numpy as np
 from transformers import AutoTokenizer
@@ -21,7 +21,7 @@ from flexible_inference_benchmark.utils.utils import (
 )
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random, JSONModeEval
 from flexible_inference_benchmark.engine.client import Client
-from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS, RequestPrompt
+from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS, RequestPromptData
 from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
@@ -52,7 +52,7 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[RequestPrompt, int, int]]:
+def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[RequestPromptData]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name.startswith('sharegpt'):
@@ -102,7 +102,7 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
 
 
 def send_requests(
-    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[Union[int, float]]
+    client: Client, requests_prompts: List[RequestPromptData], requests_times: List[Union[int, float]]
 ) -> List[Any]:
     return asyncio.run(client.benchmark(requests_prompts, requests_times))
 

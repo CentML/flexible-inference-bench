@@ -4,7 +4,7 @@ from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union, Dict
 from tqdm import tqdm
 from flexible_inference_benchmark.engine.backend_functions import (
     ASYNC_REQUEST_FUNCS,
-    RequestPrompt,
+    RequestPromptData,
     RequestFuncInput,
     RequestFuncOutput,
 )
@@ -65,7 +65,7 @@ class Client:
             return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
-        self, data: List[Tuple[RequestPrompt, int, int]], request_times: List[Union[float, int]]
+        self, data: List[RequestPromptData], request_times: List[Union[float, int]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
         pbar = None if self.disable_tqdm else tqdm(total=len(data))
@@ -84,6 +84,7 @@ class Client:
                 stream=self.stream,
                 cookies=self.cookies,
                 logprobs=self.logprobs,
+                structured_schema=data_sample[3]
             )
             for data_sample in data
         ]
