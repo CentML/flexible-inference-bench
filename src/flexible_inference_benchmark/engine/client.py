@@ -27,6 +27,7 @@ class Client:
         cookies: Dict[str, str],
         verbose: bool,
         max_concurrent: Optional[int],
+        logprobs: Optional[int],
     ):
         self.backend = backend
         self.api_url = api_url
@@ -40,6 +41,7 @@ class Client:
         self.cookies = cookies
         self.verbose = verbose
         self.max_concurrent = max_concurrent
+        self.logprobs = logprobs
 
     @property
     def request_func(
@@ -81,6 +83,7 @@ class Client:
                 ignore_eos=self.ignore_eos,
                 stream=self.stream,
                 cookies=self.cookies,
+                logprobs=self.logprobs,
             )
             for data_sample in data
         ]
@@ -107,5 +110,6 @@ class Client:
             ignore_eos=self.ignore_eos,
             stream=self.stream,
             cookies=self.cookies,
+            logprobs=self.logprobs,
         )
         return await self.send_request(0, data, 0, None, None)

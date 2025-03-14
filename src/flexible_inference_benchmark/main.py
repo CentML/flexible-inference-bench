@@ -160,6 +160,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--logprobs",
+        type=int,
+        default=None,
+        help="Number of logprobs to return with each completion. Default is None, meaning no logprobs.",
+    )
+
+    benchmark_parser.add_argument(
         "--request-distribution",
         nargs="*",
         default=["exponential", 1],
@@ -368,6 +375,7 @@ def run_main(args: argparse.Namespace) -> None:
         args.cookies,
         args.verbose,
         args.max_concurrent,
+        args.logprobs,
     )
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
     client_verbose_value = client.verbose

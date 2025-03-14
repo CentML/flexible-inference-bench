@@ -49,6 +49,7 @@ class RequestFuncInput(BaseModel):
     ignore_eos: bool = True
     stream: bool = True
     cookies: Dict[str, str]
+    logprobs: Optional[int] = None
 
 
 class RequestFuncOutput(BaseModel):
@@ -70,6 +71,7 @@ async def async_request_tgi(
 
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert not request_func_input.use_beam_search
+        assert request_func_input.logprobs is None
         params = {
             "best_of": request_func_input.best_of,
             "max_new_tokens": request_func_input.output_len,
@@ -139,6 +141,7 @@ async def async_request_trt_llm(
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert not request_func_input.use_beam_search
         assert request_func_input.best_of == 1
+        assert request_func_input.logprobs is None
         payload = {
             "accumulate_tokens": True,
             "text_input": request_func_input.prompt_data.prompt,
@@ -208,6 +211,7 @@ async def async_request_deepspeed_mii(
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert request_func_input.best_of == 1
         assert not request_func_input.use_beam_search
+        assert request_func_input.logprobs is None
 
         payload = {
             "prompt": request_func_input.prompt_data.prompt,
@@ -275,6 +279,8 @@ async def async_request_openai_completions(
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
             }
+            if request_func_input.logprobs is not None:
+                payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
             output = RequestFuncOutput()
@@ -354,6 +360,8 @@ async def async_request_openai_completions(
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream": False,
             }
+            if request_func_input.logprobs is not None:
+                payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
             output = RequestFuncOutput()
             output.prompt_len = request_func_input.prompt_len
@@ -413,6 +421,11 @@ async def async_request_openai_chat_completions(
         }
         if request_func_input.prompt_data.guided_schema is not None:
             payload["response_format"] = {"type": "json_object"}
+        
+        if request_func_input.logprobs is not None:
+            payload["logprobs"] = True
+            payload["top_logprobs"] = int(request_func_input.logprobs)
+        
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
         output = RequestFuncOutput()
@@ -486,6 +499,7 @@ async def async_request_cserve_debug(
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/generate"), "CServe Completions API URL must end with 'v1/generate'."
     assert not request_func_input.use_beam_search
+    assert request_func_input.logprobs is None
 
     if request_func_input.stream:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
