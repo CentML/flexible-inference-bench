@@ -45,7 +45,8 @@ class Client:
     @property
     def request_func(
         self,
-    ) -> Callable[[int, RequestFuncInput, Any, bool, float], Coroutine[Any, Any, RequestFuncOutput]]:
+    ) -> Callable[[int, RequestFuncInput, Any, bool, float, List[Tuple[int, int]]], \
+                  Coroutine[Any, Any, RequestFuncOutput]]:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
     async def send_request(
@@ -53,20 +54,27 @@ class Client:
         idx: int,
         data: RequestFuncInput,
         wait_time: float,
+        request_media: List[Tuple[int, int]],
         pbar: Optional[tqdm],
         sema: Optional[asyncio.BoundedSemaphore],
     ) -> Optional[Union[RequestFuncOutput, Any]]:
         await asyncio.sleep(wait_time)
         if sema:
             async with sema:
-                return await self.request_func(idx, data, pbar, self.verbose, wait_time)
+                return await self.request_func(idx, data, pbar, self.verbose, \
+                                               wait_time, request_media)
         else:
-            return await self.request_func(idx, data, pbar, self.verbose, wait_time)
+            return await self.request_func(idx, data, pbar, self.verbose, \
+                                           wait_time, request_media)
 
     async def benchmark(
-        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]]
+        self,
+        data: List[Tuple[str, int, int]],
+        request_times: List[Union[float, int]],
+        requests_media: List[List[Tuple[int, int]]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
+        assert len(data) == len(requests_media), "Data and request media must have the same length"
         pbar = None if self.disable_tqdm else tqdm(total=len(data))
 
         request_func_inputs = [
@@ -91,8 +99,9 @@ class Client:
 
         return await asyncio.gather(
             *[
-                self.send_request(idx, data, request_time, pbar, sema)
-                for idx, (data, request_time) in enumerate(zip(request_func_inputs, request_times))
+                self.send_request(idx, data, request_time, request_media, pbar, sema)
+                for idx, (data, request_time, request_media) in enumerate(
+                    zip(request_func_inputs, request_times, requests_media))
             ]
         )
 
@@ -111,4 +120,4 @@ class Client:
             cookies=self.cookies,
             logprobs=self.logprobs,
         )
-        return await self.send_request(0, data, 0, None, None)
+        return await self.send_request(0, data, 0, [], None, None)

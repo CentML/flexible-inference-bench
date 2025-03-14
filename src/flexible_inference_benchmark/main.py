@@ -30,6 +30,46 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
+def parse_tuple(value):
+    """
+    Parses a comma-separated list of width-height pairs into a list of tuples.
+    
+    Example:
+        "1920x1080,1280x720" -> [(1920, 1080), (1280, 720)]
+    """
+    try:
+        return tuple(map(float, value.split("x")))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid format: {value}. Must be a 'widthxheight' pair, e.g., '1920x1080' OR '1280x720'."
+        )
+
+
+# Specify the number and dimensions of images to be attached to each request
+def generate_request_media(args: argparse.Namespace, size) \
+    -> Union[List[List[Tuple[int, int]]], None]:
+
+    num_imgs_per_req = args.num_of_imgs_per_req
+    ratios = args.img_ratios_per_req
+
+    # Linspace to generate the number of images to attach to each request
+    num_imgs_range = list(np.linspace(num_imgs_per_req, num_imgs_per_req, size, dtype=int))
+
+    # Linspace to generate the aspect ratios of images to attach to each request
+    ratios_range_x = np.linspace(ratios[0], ratios[0], sum(num_imgs_range), dtype=int)
+    ratios_range_y = np.linspace(ratios[1], ratios[1], sum(num_imgs_range), dtype=int)
+
+    media_per_request = []
+    img_cntr = 0
+    for i in range(size):
+        media_per_request.append([])
+        for j in range(num_imgs_range[i]):
+            media_per_request[-1].append((ratios_range_x[img_cntr], ratios_range_y[img_cntr]))
+            img_cntr += 1
+    
+    return media_per_request
+
+
 def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
     dist_type = args[0]
     dist_args = (float(i) for i in args[1:])
@@ -100,9 +140,12 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
 
 
 def send_requests(
-    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[Union[int, float]]
+    client: Client,
+    requests_prompts: List[Tuple[str, int, int]],
+    requests_times: List[Union[int, float]],
+    requests_media: List[List[Tuple[int, int]]],
 ) -> List[Any]:
-    return asyncio.run(client.benchmark(requests_prompts, requests_times))
+    return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
 
 
 def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # type: ignore [type-arg]
@@ -148,6 +191,20 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     req_group.add_argument(
         "--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds."
+    )
+
+    benchmark_parser.add_argument(
+        "--num-of-imgs-per-req",
+        type=int,
+        default=None,
+        help="Number of images to attach to each request. Example: '3'."
+    )
+
+    benchmark_parser.add_argument(
+        "--img-ratios-per-req",
+        type=parse_tuple,
+        default=None,
+        help="Image aspect ratios (width x height) to attach per request. Example: '350x350'."
     )
 
     benchmark_parser.add_argument(
@@ -281,7 +338,7 @@ def parse_args() -> argparse.Namespace:
         if not args.base_url or not args.model or not args.endpoint:
             if not args.base_url:
                 logger.info("Base url not provided. Searching for ports on localhost...")
-                base_try_options = ["http://localhost:8000", "http://localhost:8080"]
+                base_try_options = ["http://localhost:8000", "http://localhost:8080", "http://localhost:8081"]
             else:
                 base_try_options = [args.base_url]
             for base_url, path in itertools.product(base_try_options, ["openapi.json", "health", "openai/health"]):
@@ -347,12 +404,14 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
+    requests_media = generate_request_media(args, size)
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
+    requests_media = requests_media[:min_length]
 
     set_max_open_files(min_length + 256)
 
@@ -386,7 +445,7 @@ def run_main(args: argparse.Namespace) -> None:
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
     t = time.perf_counter()
-    output_list: List[Any] = send_requests(client, requests_prompts, requests_times)
+    output_list: List[Any] = send_requests(client, requests_prompts, requests_times, requests_media)
     benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
     output = {
