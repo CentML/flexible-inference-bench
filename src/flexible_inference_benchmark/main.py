@@ -30,15 +30,19 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
+def return_random_image_URL_by_size(width=640, height=640):
+    return f"https://picsum.photos/{width}/{height}"
+
+
 def parse_tuple(value):
     """
-    Parses a comma-separated list of width-height pairs into a list of tuples.
+    Parses a width-height pair into a tuple of ints.
     
     Example:
-        "1920x1080,1280x720" -> [(1920, 1080), (1280, 720)]
+        "1280x720" -> (1280, 720)
     """
     try:
-        return tuple(map(float, value.split("x")))
+        return tuple(map(int, value.split("x")))
     except ValueError:
         raise argparse.ArgumentTypeError(
             f"Invalid format: {value}. Must be a 'widthxheight' pair, e.g., '1920x1080' OR '1280x720'."
@@ -47,9 +51,11 @@ def parse_tuple(value):
 
 # Specify the number and dimensions of images to be attached to each request
 def generate_request_media(args: argparse.Namespace, size) \
-    -> Union[List[List[Tuple[int, int]]], None]:
+    -> Union[List[List[Union[Tuple[int, int], str]]], None]:
 
     num_imgs_per_req = args.num_of_imgs_per_req
+    if not num_imgs_per_req:
+        return [[] for _ in range(size)]
     ratios = args.img_ratios_per_req
 
     # Linspace to generate the number of images to attach to each request
@@ -64,7 +70,22 @@ def generate_request_media(args: argparse.Namespace, size) \
     for i in range(size):
         media_per_request.append([])
         for j in range(num_imgs_range[i]):
-            media_per_request[-1].append((ratios_range_x[img_cntr], ratios_range_y[img_cntr]))
+            if args.img_base_path:
+                # If an image doesn't exist, download it
+                img_path = os.path.join(args.img_base_path, f"{ratios_range_x[img_cntr]}x{ratios_range_y[img_cntr]}_{img_cntr + 1}.jpg")
+                if not os.path.exists(img_path):
+                    os.makedirs(args.img_base_path, exist_ok=True)
+                    logger.info(f"Downloading image to {img_path} ...")
+                    img_url = return_random_image_URL_by_size(ratios_range_x[img_cntr], ratios_range_y[img_cntr])
+                    img_data = requests.get(img_url).content
+                    with open(img_path, 'wb') as handler:
+                        handler.write(img_data)
+                # Fetch the image with the ratios ratios_range_x[img_cntr], ratios_range_y[img_cntr] from the image base path
+                img_path = os.path.join(args.img_base_path, f"{ratios_range_x[img_cntr]}x{ratios_range_y[img_cntr]}_{img_cntr + 1}.jpg")
+                media_per_request[-1].append('file://' + img_path)
+            else:
+                # Fetch the image online with the ratios
+                media_per_request[-1].append(return_random_image_URL_by_size(ratios_range_x[img_cntr], ratios_range_y[img_cntr]))
             img_cntr += 1
     
     return media_per_request
@@ -143,7 +164,7 @@ def send_requests(
     client: Client,
     requests_prompts: List[Tuple[str, int, int]],
     requests_times: List[Union[int, float]],
-    requests_media: List[List[Tuple[int, int]]],
+    requests_media: List[List[Union[Tuple[int, int], str]]],
 ) -> List[Any]:
     return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
 
@@ -203,8 +224,15 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--img-ratios-per-req",
         type=parse_tuple,
+        default='500x500',
+        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'."
+    )
+
+    benchmark_parser.add_argument(
+        "--img-base-path",
+        type=str,
         default=None,
-        help="Image aspect ratios (width x height) to attach per request. Example: '350x350'."
+        help="Base image directory. Example: '/path/to/imgs/'",
     )
 
     benchmark_parser.add_argument(

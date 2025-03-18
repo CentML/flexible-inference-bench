@@ -45,7 +45,7 @@ class Client:
     @property
     def request_func(
         self,
-    ) -> Callable[[int, RequestFuncInput, Any, bool, float, List[Tuple[int, int]]], \
+    ) -> Callable[[int, RequestFuncInput, Any, bool, float, List[str]], \
                   Coroutine[Any, Any, RequestFuncOutput]]:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
@@ -54,7 +54,7 @@ class Client:
         idx: int,
         data: RequestFuncInput,
         wait_time: float,
-        request_media: List[Tuple[int, int]],
+        request_media: List[str],
         pbar: Optional[tqdm],
         sema: Optional[asyncio.BoundedSemaphore],
     ) -> Optional[Union[RequestFuncOutput, Any]]:
@@ -71,7 +71,7 @@ class Client:
         self,
         data: List[Tuple[str, int, int]],
         request_times: List[Union[float, int]],
-        requests_media: List[List[Tuple[int, int]]]
+        requests_media: List[List[str]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
         assert len(data) == len(requests_media), "Data and request media must have the same length"
