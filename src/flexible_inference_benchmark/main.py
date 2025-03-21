@@ -479,9 +479,6 @@ def run_main(args: argparse.Namespace) -> None:
     if args.profile:
         logger.info("Starting the Torch profiler.")
         asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0]))
-        # if not validate_profiler.success:
-        #     logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
-        #     sys.exit()
 
     logger.info(f"Sending {args.num_validation_reqs} requests for validation and warmup.")
     for i in range(args.num_validation_reqs):
@@ -498,9 +495,6 @@ def run_main(args: argparse.Namespace) -> None:
     if args.profile:
         logger.info("Stopping the Torch profiler.")
         asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0]))
-        # if not validate_profiler.success:
-        #     logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
-        #     sys.exit()
 
     # pylint: disable=line-too-long
     output = {
