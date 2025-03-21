@@ -667,6 +667,75 @@ def print_verbose(
         )
 
 
+async def async_request_profiler(
+    idx: int,
+    request_func_input: RequestFuncInput,
+    pbar: Optional[tqdm],
+    verbose: bool,
+    wait_time: float,
+    media: List[str]
+) -> RequestFuncOutput:
+    api_url = request_func_input.api_url
+    assert api_url.endswith("start_profile") or api_url.endswith("stop_profile"), \
+        "Torch Profiler API URL must end with 'start_profile' or 'stop_profile'."
+
+    content_body = [
+        {
+            "type": "text",
+            "text": request_func_input.prompt,
+        },
+    ]
+
+    for media_item in media:
+        content_body.append({
+            "type": "image_url",
+            "image_url": {
+                "url": media_item,
+            },
+        })
+
+    async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
+        assert not request_func_input.use_beam_search
+        payload = {
+            "model": request_func_input.model,
+            "messages": [{"role": "user", "content": content_body}],
+            "temperature": 0.0,
+            "max_tokens": request_func_input.output_len,
+            "stream": True,
+            "ignore_eos": request_func_input.ignore_eos,
+        }
+        if request_func_input.logprobs is not None:
+            payload["logprobs"] = True
+            payload["top_logprobs"] = int(request_func_input.logprobs)
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+
+        output = RequestFuncOutput()
+        output.prompt_len = request_func_input.prompt_len
+
+        try:
+            async with session.post(
+                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+            ) as response:
+                if response.status == 200:
+                    output.success = True
+                else:
+                    output.error = response.reason or ""
+                    output.success = False
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "connection error, please verify the server is running"
+
+        except Exception:  # pylint: disable=broad-except
+            output.success = False
+            exc_info = sys.exc_info()
+            output.error = "".join(traceback.format_exception(*exc_info))
+
+    if pbar:
+        pbar.update(1)
+    return output
+
+
 ASYNC_REQUEST_FUNCS = {
     "tgi": async_request_tgi,
     "vllm": async_request_openai_completions,
@@ -678,4 +747,5 @@ ASYNC_REQUEST_FUNCS = {
     "openai": async_request_openai_completions,
     "openai-chat": async_request_openai_chat_completions,
     "tensorrt-llm": async_request_trt_llm,
+    "profiler": async_request_profiler,
 }
