@@ -319,6 +319,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     benchmark_parser.add_argument("--debug", action="store_true", help="Log debug messages.")
 
+    benchmark_parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Use Torch Profiler. The endpoint must be launched with "
+        "VLLM_TORCH_PROFILER_DIR to enable profiler.",
+    )
+
     benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
 
     benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
@@ -446,6 +453,7 @@ def run_main(args: argparse.Namespace) -> None:
     client = Client(
         args.backend,
         args.api_url,
+        base_url,
         args.model,
         args.best_of,
         args.use_beam_search,
@@ -461,6 +469,15 @@ def run_main(args: argparse.Namespace) -> None:
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
     client_verbose_value = client.verbose
     client.verbose = False
+
+    if args.profile:
+        logger.info("Starting the Torch profiler.")
+        validate_profiler = asyncio.run(client.start_torch_profiler(requests_prompts[0]))
+        logger.info("ENDED Starting the Torch profiler.")
+        if not validate_profiler.success:
+            logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
+            sys.exit()
+
     logger.info("Sending a single request for validation.")
     validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
     if not validate_endpoint.success:
@@ -471,6 +488,14 @@ def run_main(args: argparse.Namespace) -> None:
     t = time.perf_counter()
     output_list: List[Any] = send_requests(client, requests_prompts, requests_times, requests_media)
     benchmark_time = time.perf_counter() - t
+
+    if args.profile:
+        logger.info("Stopping the Torch profiler.")
+        validate_profiler = asyncio.run(client.stop_torch_profiler(requests_prompts[0]))
+        if not validate_profiler.success:
+            logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
+            sys.exit()
+
     # pylint: disable=line-too-long
     output = {
         "backend": args.backend,
