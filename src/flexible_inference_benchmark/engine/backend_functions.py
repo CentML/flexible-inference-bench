@@ -45,52 +45,37 @@ class RequestPromptData(BaseModel):
     structured_json_schema: Optional[dict] = None
 
     @classmethod
-    def _from_both(cls,
-                            prompt: str,
-                            messages: List[Dict[str, str]],
-                            tokenizer: transformers.PreTrainedTokenizer,
-                            expected_completion: Optional[str] = None,
-                            structured_json_schema: Optional[dict] = None
-                            ) -> "RequestPromptData":
-        """Compute tokenized metadata and create a RequestPromptData class."""
-        return cls(completion_prompt_str=prompt,
-                   chat_prompt_messages=messages,
-                   completion_prompt_num_tokens=len(tokenizer(prompt)["input_ids"]),
-                   chat_prompt_num_tokens=len(tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=True)),
-                   expected_completion=expected_completion,
-                   expected_completion_num_tokens=len(tokenizer(expected_completion)["input_ids"]) if expected_completion else None,
-                   structured_json_schema=structured_json_schema)
-
-    @classmethod
-    def from_completion_string(cls,
-                               prompt: str,
-                               tokenizer: transformers.PreTrainedTokenizer,
-                               expected_completion: Optional[str] = None,
-                               structured_json_schema: Optional[dict] = None
-                               ) -> "RequestPromptData":
-        """Create a RequestPromptData object from a completion-style prompt string."""
-        return cls._from_both(prompt, 
-                                [{"role": "user", "content": prompt}],
-                                tokenizer,
-                                expected_completion=expected_completion,
-                                structured_json_schema=structured_json_schema)
-    
-    @classmethod
-    def from_chat_messages(cls,
-                           messages: List[Dict[str, str]],
-                           tokenizer: transformers.PreTrainedTokenizer,
-                           expected_completion: Optional[str] = None,
-                           structured_json_schema: Optional[dict] = None) -> "RequestPromptData":
-        """
-        Create a RequestPromptData object from a chat-style list of messages.
-        When used with completion-style endpoints, the chat-templated prompt
-        string will be used.
-        """
-        return cls._from_both(tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False),
-                                messages,
-                                tokenizer,
-                                expected_completion=expected_completion,
-                                structured_json_schema=structured_json_schema)
+    def build(cls,
+              tokenizer: transformers.PreTrainedTokenizer,
+              completion_prompt_str: Optional[str] = None,
+              chat_prompt_messages: Optional[List[Dict[str, str]]] = None,
+              completion_prompt_num_tokens: Optional[int] = None,
+              chat_prompt_num_tokens: Optional[int] = None,
+              expected_completion: Optional[str] = None,
+              expected_completion_num_tokens: Optional[int] = None,
+              structured_json_schema: Optional[dict] = None) -> "RequestPromptData":
+        """Build a RequestPromptData object with optional parameters."""
+        if completion_prompt_str is None:
+            assert chat_prompt_messages is not None
+            completion_prompt_tokens = tokenizer.apply_chat_template(chat_prompt_messages, add_generation_prompt=True, tokenize=True)
+            completion_prompt_str = tokenizer.decode(completion_prompt_tokens, skip_special_tokens=False)
+            completion_prompt_num_tokens = len(completion_prompt_tokens)
+        if chat_prompt_messages is None:
+            assert completion_prompt_str is not None
+            chat_prompt_messages = [{"role": "user", "content": completion_prompt_str}]
+        if completion_prompt_num_tokens is None:
+            completion_prompt_num_tokens = len(tokenizer(completion_prompt_str)["input_ids"])
+        if chat_prompt_num_tokens is None:
+            chat_prompt_num_tokens = len(tokenizer.apply_chat_template(chat_prompt_messages, add_generation_prompt=True, tokenize=True))
+        if expected_completion_num_tokens is None and expected_completion is not None:
+            expected_completion_num_tokens = len(tokenizer(expected_completion)["input_ids"])
+        return cls(completion_prompt_str=completion_prompt_str,
+                     chat_prompt_messages=chat_prompt_messages,
+                     completion_prompt_num_tokens=completion_prompt_num_tokens,
+                     chat_prompt_num_tokens=chat_prompt_num_tokens,
+                     expected_completion=expected_completion,
+                     expected_completion_num_tokens=expected_completion_num_tokens,
+                     structured_json_schema=structured_json_schema)
 
 
 class RequestFuncInput(BaseModel):

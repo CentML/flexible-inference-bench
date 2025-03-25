@@ -3,6 +3,7 @@ from typing import List, Tuple, Optional
 import logging
 import json
 import random
+import sqlite3
 import os
 from hashlib import sha256
 
@@ -120,11 +121,13 @@ class Textfile(Data):
                 continue
             prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
 
-            input_data.append(RequestPromptData.from_completion_string(
-                self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end], tokenizer=self.tokenizer)))
+            input_data.append(RequestPromptData.build(
+                tokenizer=self.tokenizer,
+                completion_prompt_str=self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
+                completion_prompt_num_tokens=prefix_len + (prompt_end - starts[i])))
 
         if len(input_data) < size:
-            logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
+            logger.warning(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
         return random.sample(input_data, size)
 
@@ -186,8 +189,10 @@ class Random(Data):
                 continue
             prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
 
-            input_data.append(RequestPromptData.from_completion_string(
-                self.prefix_str + self.tokenizer.decode(data[:prompt_end], self.tokenizer)))
+            input_data.append(RequestPromptData.build(
+                tokenizer=self.tokenizer,
+                completion_prompt_str=self.prefix_str + self.tokenizer.decode(data[:prompt_end]),
+                completion_prompt_num_tokens=prefix_len + prompt_end))
 
         if len(input_data) < size:
             logger.warning(f"Generating {len(input_data)} requests instead of {size} requests.")
@@ -205,6 +210,40 @@ class ShareGPT(Data):
             dataset = json.load(f)
 
         dataset = [data for data in dataset if len(data["conversations"]) >= 2]
+
+        os.makedirs(os.path.expanduser("~/.cache/flexible_inference_benchmark/"), exist_ok=True)
+
+        database_cache_path = os.path.join(
+            os.path.expanduser("~/.cache/flexible_inference_benchmark/"), "sharegpt_database_v0.db"
+        )
+
+        # create the database if it does not exist
+        if not os.path.exists(database_cache_path):
+            with open(database_cache_path, "w"):
+                connection = sqlite3.connect(database_cache_path)
+                cursor = connection.cursor()
+                cursor.execute(
+                    "CREATE TABLE sharegpt (index INTEGER PRIMARY KEY, prompt TEXT, output TEXT)"
+                )
+                insert_data = [(i, data["conversations"][0]["value"], data["conversations"][1]["value"]) for i, data in enumerate(dataset)]
+                insert_data = list(filter(lambda x: len(tokenizer.encode(x[1])) > 4 and len(tokenizer.encode(x[2])) > 4, insert_data))
+                cursor.executemany(
+                    "INSERT INTO sharegpt (index, prompt, output) VALUES (?, ?, ?)", insert_data
+                )
+                cursor.execute(
+                    "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)"
+                )
+                cursor.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('version', '0')"
+                )
+                cursor.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('count', ?)", (str(len(insert_data)),)
+                )
+                connection.commit()
+                connection.close()
+
+        self.database_cache_path = database_cache_path
+        return
 
         tokenizer_id = tokenizer.name_or_path.replace("/", "_")
         cache_path = os.path.join(
@@ -235,6 +274,11 @@ class ShareGPT(Data):
         # TODO: fix this
         # TODO: make sure output distribution gets calculated
         filtered_dataset = [
+            RequestPromptData.build(
+                tokenizer,
+                completion_prompt_str=prompt_str,
+
+            )
             RequestPromptData.from_completion_string(prompt_str, tokenizer)
             for prompt_str, prompt_len, output_len in tokenized_dataset
             if (prompt_len > 4 and output_len > 4)
@@ -245,14 +289,41 @@ class ShareGPT(Data):
         logger.info("Loaded ShareGPT dataset.")
 
     def generate_data(self, size: int) -> List[RequestPromptData]:
-        if len(self.data) < size:
-            logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
-            return self.data
-        return random.sample(self.data, size)
+        # establish a connection to the database
+        connection = sqlite3.connect(self.database_cache_path)
+        cursor = connection.cursor()
+
+        # read the number of entries from the metadata table
+        cursor.execute("SELECT value FROM metadata WHERE key='count'")
+        count = int(cursor.fetchone()[0])
+
+        sample_num = min(size, count)
+        indices = random.sample(range(count), sample_num)
+
+        # read the entries from the database
+        cursor.execute("SELECT prompt, output FROM sharegpt WHERE index IN ({placeholder})", tuple(indices))
+        data = cursor.fetchall()
+
+        # close the connection
+        connection.close()
+
+        # format the request data
+        data = [
+            RequestPromptData.build(
+                tokenizer=self.tokenizer,
+                completion_prompt_str=prompt,
+                expected_completion=output
+            )
+            for prompt, output in data
+        ]
+
+        if sample_num < size:
+            logger.warning(f"Generating {count} requests instead of {size} requests.")
+        return data
 
 # fib benchmark -n 10 -rps 2 --dataset json --disable-ignore-eos --backend openai-chat --endpoint v1/chat/completions
 class JSONModeEval(Data):
-    def __init__(self, max_seq_len: int, tokenizer: transformers.PreTrainedTokenizer) -> None:
+    def __init__(self, tokenizer: transformers.PreTrainedTokenizer) -> None:
         from datasets import load_dataset
         import json
         ds = load_dataset("NousResearch/json-mode-eval")["train"]
@@ -260,13 +331,18 @@ class JSONModeEval(Data):
         for row in ds:
             messages = row["prompt"]
             schema = json.loads(row["schema"])
-            data_list.append(RequestPromptData.from_chat_messages(messages, tokenizer, row["completion"], schema=schema))
+            data_list.append(RequestPromptData.build(
+                tokenizer=tokenizer,
+                chat_prompt_messages=messages,
+                expected_completion=row["completion"],
+                schema=schema
+            ))
 
         self.data = data_list
         logger.info("Loaded JSON Mode Eval dataset.")
 
     def generate_data(self, size: int) -> List[RequestPromptData]:
         if len(self.data) < size:
-            logger.debug(f"Generating {len(self.data)} requests instead of {size} requests.")
+            logger.warning(f"Generating {len(self.data)} requests instead of {size} requests.")
             return self.data
         return random.sample(self.data, size)
