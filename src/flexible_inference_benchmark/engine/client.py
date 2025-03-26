@@ -54,7 +54,6 @@ class Client:
         idx: int,
         data: RequestFuncInput,
         wait_time: float,
-        request_media: List[str],
         pbar: Optional[tqdm],
         sema: Optional[asyncio.BoundedSemaphore],
     ) -> Optional[Union[RequestFuncOutput, Any]]:
@@ -62,10 +61,10 @@ class Client:
         if sema:
             async with sema:
                 return await self.request_func(idx, data, pbar, self.verbose, \
-                                               wait_time, request_media)
+                                               wait_time)
         else:
             return await self.request_func(idx, data, pbar, self.verbose, \
-                                           wait_time, request_media)
+                                           wait_time)
 
     async def benchmark(
         self,
@@ -80,6 +79,7 @@ class Client:
         request_func_inputs = [
             RequestFuncInput(
                 prompt=data_sample[0],
+                media=media_sample,
                 api_url=self.api_url,
                 prompt_len=data_sample[1],
                 output_len=data_sample[2],
@@ -92,22 +92,23 @@ class Client:
                 cookies=self.cookies,
                 logprobs=self.logprobs,
             )
-            for data_sample in data
+            for (data_sample, media_sample) in zip(data, requests_media)
         ]
 
         sema = asyncio.BoundedSemaphore(self.max_concurrent) if self.max_concurrent else None
 
         return await asyncio.gather(
             *[
-                self.send_request(idx, data, request_time, request_media, pbar, sema)
-                for idx, (data, request_time, request_media) in enumerate(
-                    zip(request_func_inputs, request_times, requests_media))
+                self.send_request(idx, data, request_time, pbar, sema)
+                for idx, (data, request_time) in enumerate(
+                    zip(request_func_inputs, request_times))
             ]
         )
 
-    async def validate_url_endpoint(self, request: Tuple[str, int, int]) -> Union[RequestFuncOutput, Any]:
+    async def validate_url_endpoint(self, request: Tuple[str, int, int], media_item: List[str]) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
             prompt=request[0],
+            media=media_item,
             api_url=self.api_url,
             prompt_len=request[1],
             output_len=request[2],
@@ -120,4 +121,4 @@ class Client:
             cookies=self.cookies,
             logprobs=self.logprobs,
         )
-        return await self.send_request(0, data, 0, [], None, None)
+        return await self.send_request(0, data, 0, None, None)

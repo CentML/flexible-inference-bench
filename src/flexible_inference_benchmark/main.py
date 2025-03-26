@@ -466,7 +466,7 @@ def run_main(args: argparse.Namespace) -> None:
     client_verbose_value = client.verbose
     client.verbose = False
     logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0]))
+    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
     if not validate_endpoint.success:
         logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
         sys.exit()
