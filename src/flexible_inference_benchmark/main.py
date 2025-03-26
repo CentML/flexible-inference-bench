@@ -366,7 +366,7 @@ def parse_args() -> argparse.Namespace:
         if not args.base_url or not args.model or not args.endpoint:
             if not args.base_url:
                 logger.info("Base url not provided. Searching for ports on localhost...")
-                base_try_options = ["http://localhost:8000", "http://localhost:8080", "http://localhost:8081"]
+                base_try_options = ["http://localhost:8000", "http://localhost:8080"]
             else:
                 base_try_options = [args.base_url]
             for base_url, path in itertools.product(base_try_options, ["openapi.json", "health", "openai/health"]):

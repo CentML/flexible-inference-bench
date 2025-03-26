@@ -45,8 +45,7 @@ class Client:
     @property
     def request_func(
         self,
-    ) -> Callable[[int, RequestFuncInput, Any, bool, float, List[str]], \
-                  Coroutine[Any, Any, RequestFuncOutput]]:
+    ) -> Callable[[int, RequestFuncInput, Any, bool, float], Coroutine[Any, Any, RequestFuncOutput]]:
         return ASYNC_REQUEST_FUNCS[self.backend]
 
     async def send_request(
@@ -60,11 +59,9 @@ class Client:
         await asyncio.sleep(wait_time)
         if sema:
             async with sema:
-                return await self.request_func(idx, data, pbar, self.verbose, \
-                                               wait_time)
+                return await self.request_func(idx, data, pbar, self.verbose, wait_time)
         else:
-            return await self.request_func(idx, data, pbar, self.verbose, \
-                                           wait_time)
+            return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
         self,
@@ -100,8 +97,7 @@ class Client:
         return await asyncio.gather(
             *[
                 self.send_request(idx, data, request_time, pbar, sema)
-                for idx, (data, request_time) in enumerate(
-                    zip(request_func_inputs, request_times))
+                for idx, (data, request_time) in enumerate(zip(request_func_inputs, request_times))
             ]
         )
 
