@@ -291,7 +291,7 @@ async def async_request_openai_completions(
                             else:
                                 data = json.loads(chunk)
 
-                                if len(data["choices"]) > 0 and data["choices"][0]["text"]:
+                                if len(data["choices"]) > 0 and data["choices"][0]["text"] is not None:
                                     timestamp = time.perf_counter()
                                     # First token
                                     if ttft == 0.0:
@@ -309,7 +309,10 @@ async def async_request_openai_completions(
                                     generated_text += data["choices"][0]["text"]
 
                                 if data["usage"]:
-                                    output.output_len = data["usage"]["completion_tokens"]
+                                    if "completion_tokens" in data["usage"]:
+                                        output.output_len = int(data["usage"]["completion_tokens"])
+                                    if "prompt_tokens" in data["usage"]:
+                                        output.prompt_len = int(data["usage"]["prompt_tokens"])
 
                         output.generated_text = generated_text
                         output.success = True
@@ -364,6 +367,11 @@ async def async_request_openai_completions(
                         output.success = True
                         if verbose:
                             print_verbose(idx, request_func_input, 0, rcv_time, output.latency, False)
+                        if parsed_resp.get("usage", None):
+                            if "completion_tokens" in parsed_resp["usage"]:
+                                output.output_len = int(parsed_resp["usage"]["completion_tokens"])
+                            if "prompt_tokens" in parsed_resp["usage"]:
+                                output.prompt_len = int(parsed_resp["usage"]["prompt_tokens"])
                     else:
                         output.success = False
                         output.error = (
@@ -415,6 +423,7 @@ async def async_request_openai_chat_completions(
             "max_tokens": request_func_input.output_len,
             "stream": True,
             "ignore_eos": request_func_input.ignore_eos,
+            "stream_options": {"include_usage": True},
         }
         if request_func_input.logprobs is not None:
             payload["logprobs"] = True
@@ -447,8 +456,12 @@ async def async_request_openai_chat_completions(
                             timestamp = time.perf_counter()
                             data = json.loads(chunk)
 
-                            delta = data["choices"][0]["delta"]
-                            if delta.get("content", None):
+                            delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
+                            content = delta.get("content", None) if delta is not None else None
+                            # Make sure to include the content if it's not None
+                            # Since EOS can translate to an empty string, include `content == ""`
+                            # as long as it's not the first token
+                            if content is not None and not (ttft == 0.0 and content == ''):
                                 # First token
                                 if ttft == 0.0:
                                     ttft = time.perf_counter() - st
@@ -459,8 +472,13 @@ async def async_request_openai_chat_completions(
                                     output.itl.append(timestamp - most_recent_timestamp)
 
                                 generated_text += delta["content"]
+                                most_recent_timestamp = timestamp
 
-                            most_recent_timestamp = timestamp
+                            if "usage" in data:
+                                if data["usage"]["completion_tokens"]:
+                                    output.output_len = int(data["usage"]["completion_tokens"])
+                                if data["usage"]["prompt_tokens"]:
+                                    output.prompt_len = int(data["usage"]["prompt_tokens"])
 
                     output.generated_text = generated_text
                     output.success = True
