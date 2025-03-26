@@ -20,6 +20,7 @@ class bcolors:
 
 class RequestFuncInput(BaseModel):
     prompt: str
+    media: List[str]
     api_url: str
     prompt_len: int
     output_len: int
@@ -45,12 +46,7 @@ class RequestFuncOutput(BaseModel):
 
 
 async def async_request_tgi(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("generate_stream")
@@ -119,12 +115,7 @@ async def async_request_tgi(
 
 
 async def async_request_trt_llm(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("generate_stream")
@@ -197,12 +188,7 @@ async def async_request_trt_llm(
 
 
 async def async_request_deepspeed_mii(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert request_func_input.best_of == 1
@@ -257,12 +243,7 @@ async def async_request_deepspeed_mii(
 
 
 async def async_request_openai_completions(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/completions"), "OpenAI Completions API URL must end with 'v1/completions'."
@@ -403,12 +384,7 @@ async def async_request_openai_completions(
 
 
 async def async_request_openai_chat_completions(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith(
@@ -422,7 +398,7 @@ async def async_request_openai_chat_completions(
         },
     ]
 
-    for media_item in media:
+    for media_item in request_func_input.media:
         content_body.append({
             "type": "image_url",
             "image_url": {
@@ -511,12 +487,7 @@ async def async_request_openai_chat_completions(
 
 
 async def async_request_cserve_debug(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("v1/generate"), "CServe Completions API URL must end with 'v1/generate'."
