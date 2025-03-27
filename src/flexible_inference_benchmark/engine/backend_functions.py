@@ -657,12 +657,7 @@ def print_verbose(
 
 
 async def async_request_profiler(
-    idx: int,
-    request_func_input: RequestFuncInput,
-    pbar: Optional[tqdm],
-    verbose: bool,
-    wait_time: float,
-    media: List[str]
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("start_profile") or api_url.endswith("stop_profile"), \
