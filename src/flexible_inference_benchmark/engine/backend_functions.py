@@ -657,7 +657,11 @@ def print_verbose(
 
 
 async def async_request_profiler(
-    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
+    idx: int,
+    request_func_input: RequestFuncInput,
+    pbar: Optional[tqdm],
+    verbose: bool,
+    wait_time: float,
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith("start_profile") or api_url.endswith("stop_profile"), \
@@ -670,7 +674,7 @@ async def async_request_profiler(
         },
     ]
 
-    for media_item in media:
+    for media_item in request_func_input.media:
         content_body.append({
             "type": "image_url",
             "image_url": {
