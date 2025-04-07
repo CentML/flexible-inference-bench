@@ -30,7 +30,7 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_URL_by_size(width=640, height=640):
+def return_random_image_URL_by_size(width, height):
     return f"https://picsum.photos/{width}/{height}"
 
 
@@ -58,34 +58,27 @@ def generate_request_media(args: argparse.Namespace, size) \
         return [[] for _ in range(size)]
     ratios = args.img_ratios_per_req
 
-    # Linspace to generate the number of images to attach to each request
-    num_imgs_range = list(np.linspace(num_imgs_per_req, num_imgs_per_req, size, dtype=int))
-
-    # Linspace to generate the aspect ratios of images to attach to each request
-    ratios_range_x = np.linspace(ratios[0], ratios[0], sum(num_imgs_range), dtype=int)
-    ratios_range_y = np.linspace(ratios[1], ratios[1], sum(num_imgs_range), dtype=int)
-
     media_per_request = []
     img_cntr = 0
     for i in range(size):
         media_per_request.append([])
-        for j in range(num_imgs_range[i]):
+        for j in range(int(num_imgs_per_req)):
+            # If img_base_path is provided, store the image locally
+            # Otherwise, feed the image online
             if args.img_base_path:
                 # If an image doesn't exist, download it
-                img_path = os.path.join(args.img_base_path, f"{ratios_range_x[img_cntr]}x{ratios_range_y[img_cntr]}_{img_cntr + 1}.jpg")
+                img_path = os.path.join(args.img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
                 if not os.path.exists(img_path):
                     os.makedirs(args.img_base_path, exist_ok=True)
                     logger.info(f"Downloading image to {img_path} ...")
-                    img_url = return_random_image_URL_by_size(ratios_range_x[img_cntr], ratios_range_y[img_cntr])
+                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
                     img_data = requests.get(img_url).content
                     with open(img_path, 'wb') as handler:
                         handler.write(img_data)
-                # Fetch the image with the ratios ratios_range_x[img_cntr], ratios_range_y[img_cntr] from the image base path
-                img_path = os.path.join(args.img_base_path, f"{ratios_range_x[img_cntr]}x{ratios_range_y[img_cntr]}_{img_cntr + 1}.jpg")
                 media_per_request[-1].append('file://' + img_path)
             else:
                 # Fetch the image online with the ratios
-                media_per_request[-1].append(return_random_image_URL_by_size(ratios_range_x[img_cntr], ratios_range_y[img_cntr]))
+                media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
             img_cntr += 1
     
     return media_per_request
@@ -232,7 +225,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--img-base-path",
         type=str,
         default=None,
-        help="Base image directory. Example: '/path/to/imgs/'",
+        help="Base image directory. Example: '/path/to/imgs/'. If provided, images will be downloaded to" \
+        " this directory before benchmarking and fed from here. If not provided, images will be fed online," \
+        " which could cause excessive network delays in large numbers. To enable this, the serving engine" \
+        " also needs to start with the --allowed-local-media-path /path/to/imgs/ option.",
     )
 
     benchmark_parser.add_argument(
