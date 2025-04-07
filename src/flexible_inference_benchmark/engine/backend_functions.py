@@ -670,7 +670,7 @@ async def async_request_profiler(
         },
     ]
 
-    for media_item in media:
+    for media_item in request_func_input.media:
         content_body.append({
             "type": "image_url",
             "image_url": {
