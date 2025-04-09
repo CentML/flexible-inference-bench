@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 
 class WaveState:
     def __init__(self) -> None:
-        self.is_growing = True
-        self.size = 0
+        # -1: decreasing, 0: sustain, 1: increasing
+        self.delta = 1
+        self.num_running_requests = 0
+        self.num_finished_requests = 0
 
 
 class Client:
@@ -50,7 +52,7 @@ class Client:
         self.max_concurrent = max_concurrent
         self.wave = wave
         if wave:
-            self.wave_min, self.wave_max, self.wave_intensity = wave
+            self.wave_min, self.wave_max, self.wave_sustain = wave
         self.logprobs = logprobs
 
     @property
@@ -65,7 +67,7 @@ class Client:
         data: RequestFuncInput,
         wait_time: float,
         pbar: Optional[tqdm],
-        sema: Optional[asyncio.BoundedSemaphore],
+        sema: Optional[asyncio.BoundedSemaphore] = None,
     ) -> Optional[Union[RequestFuncOutput, Any]]:
         await asyncio.sleep(wait_time)
         if sema:
@@ -85,25 +87,41 @@ class Client:
     ) -> Optional[Union[RequestFuncOutput, Any]]:
         await sema.acquire()
 
-        wave_state.size += 1
-        if wave_state.is_growing and wave_state.size == self.wave_max:
-            wave_state.is_growing = False
+        wave_state.num_running_requests += 1
+        if wave_state.delta == 1:
+            assert wave_state.num_running_requests <= self.wave_max
+            if wave_state.num_running_requests == self.wave_max:
+                wave_state.delta = 0
+                wave_state.num_finished_requests = 0
+                # If multiple requests finish before this is sent, the semaphore could have more capacity than wave_max
+                # So we acquire all to sync the semaphore with our expectation
+                while not sema.locked():
+                    sema.acquire()
 
         try:
-            request_result = await self.send_request(idx, data, wait_time, pbar, None)
+            request_result = await self.send_request(idx, data, wait_time, pbar)
         finally:
-            if wave_state.is_growing:
-                # wave_intensity% chance of releasing an extra, increasing req concurrency by 1
+            wave_state.num_running_requests -= 1
+            wave_state.num_finished_requests += 1
+            if wave_state.delta == -1:
+                if wave_state.num_running_requests == self.wave_min:
+                    # Don't release semaphore to keep concurrency at min
+                    wave_state.delta = 0
+                    wave_state.num_finished_requests = 0
+                else:
+                    # 50% chance of not releasing, decreasing req concurrency by 1
+                    if random.getrandbits(1):
+                        sema.release()
+            elif wave_state.delta == 1:
                 sema.release()
-                if random.randint(1, 100) <= self.wave_intensity:
+                # 50% chance of releasing an extra, increasing req concurrency by 1
+                if random.getrandbits(1):
                     sema.release()
             else:
-                # wave_intensity% chance of not releasing, decreasing req concurrency by 1
-                if not random.randint(1, 100) <= self.wave_intensity:
-                    sema.release()
-            wave_state.size -= 1
-            if not wave_state.is_growing and wave_state.size == self.wave_min:
-                wave_state.is_growing = True
+                sema.release()
+                if wave_state.num_finished_requests == self.wave_sustain:
+                    # When wave is at min, num_running_requests will be at min-1 since a request just finished
+                    wave_state.delta = 1 if wave_state.num_running_requests == self.wave_min - 1 else -1
 
         return request_result
 
@@ -132,7 +150,7 @@ class Client:
         ]
 
         if self.wave:
-            sema = asyncio.Semaphore(self.wave_min)
+            sema = asyncio.Semaphore(self.wave_max)
             wave_state = WaveState()
             return await asyncio.gather(
                 *[

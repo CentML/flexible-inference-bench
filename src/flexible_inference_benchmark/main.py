@@ -291,6 +291,10 @@ def parse_args() -> argparse.Namespace:
                 fail("Number of requests must be provided for varying requests")
             if args.wave[0] >= args.wave[1]:
                 fail("Min wave concurrency must be smaller than max wave concurrency")
+            if args.wave[0] <= 0:
+                fail("Min wave concurrency must be positive")
+            if args.wave[2] <= 0:
+                fail("Wave sustain must be positive")
             if args.max_concurrent:
                 logger.warning("Both varying requests and max concurrency provided. Ignoring max concurrency")
                 args.max_concurrent = None
@@ -388,8 +392,6 @@ def run_main(args: argparse.Namespace) -> None:
     base_url = args.base_url.strip("/")
     endpoint = args.endpoint.strip("/")
     args.api_url = f"{base_url}/{endpoint}"
-
-    logger.info(type(args.wave))
 
     client = Client(
         args.backend,
