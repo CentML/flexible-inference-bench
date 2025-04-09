@@ -96,7 +96,7 @@ class Client:
                 # If multiple requests finish before this is sent, the semaphore could have more capacity than wave_max
                 # So we acquire all to sync the semaphore with our expectation
                 while not sema.locked():
-                    sema.acquire()
+                    await sema.acquire()
 
         try:
             request_result = await self.send_request(idx, data, wait_time, pbar)

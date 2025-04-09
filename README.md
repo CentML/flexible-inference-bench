@@ -27,7 +27,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--max-concurrent` | Limits the number of concurrent in-flight requests to at most N requests. |
 | `--input-token-distribution` | Request distribution for prompt length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--output-token-distribution` | Request distribution for output token length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
-| `--varying-requests` (`--wave`) | Sends requests to maintain an oscillating request concurrency given min and max bounds and a wave intensity (1 to 100, lower means longer wave period, set to 50 if unsure). <br> eg: `--wave min_concurrency max_concurrency intensity` |
+| `--varying-requests` (`--wave`) | Sends requests to maintain an oscillating request concurrency given min, max, and sustain. <br> eg: `-n 400 --wave 10 30 20`, will send 400 requests with concurrency between 10 and 30 requests, sustaining for the duration of 20 requests at concurrency extrema. See [this graph](https://drive.google.com/file/d/1c0qrWa3DIEGxJdZO7hcKmehrPreBl84V/view?usp=sharing) for a visual. |
 | `--workload` (`-w`) | One of a few presets that define the input and output token distributions for common use-cases. |
 | one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
 | `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
