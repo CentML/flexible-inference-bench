@@ -46,9 +46,13 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         size = 1
         dist = select_distribution(args.request_distribution)
         # Check if any elements exceed max length
-        while not [i for i in dist.generate_distribution(size) if i > args.max_time_for_reqs]:
+        while size < 1e6 and not [i for i in dist.generate_distribution(size) if i > args.max_time_for_reqs]:
             size *= 2
         requests_times = dist.generate_distribution(size)
+        if size >= 1e6:
+            size = int(1e6)
+            # Eg. if the user runs `--timeout 10 -rps inf`, an arbitrary number of requests at time=0 can be generated
+            logger.warning("Capping number of requests at 1000`000")
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
@@ -193,6 +197,15 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
+    benchmark_parser.add_argument(
+        "--varying-requests",
+        "--wave",
+        type=int,
+        nargs=3,
+        dest="wave",
+        help="Send requests at a varying request concurrency in a wave-like pattern",
+    )
+
     prefix_group = benchmark_parser.add_mutually_exclusive_group()
 
     prefix_group.add_argument("--prefix-text", type=str, default=None, help="Text to use as prefix for all requests.")
@@ -272,6 +285,26 @@ def parse_args() -> argparse.Namespace:
             print('\n\n\n')
             logger.error(msg)
             sys.exit(1)
+
+        if args.wave:
+            if not args.num_of_req:
+                fail("Number of requests must be provided for varying requests")
+            if args.wave[0] >= args.wave[1]:
+                fail("Min wave concurrency must be smaller than max wave concurrency")
+            if args.wave[0] <= 0:
+                fail("Min wave concurrency must be positive")
+            if args.wave[2] <= 0:
+                fail("Wave sustain must be positive")
+            if args.max_concurrent:
+                logger.warning("Both varying requests and max concurrency provided. Ignoring max concurrency")
+                args.max_concurrent = None
+            if args.request_distribution:
+                logger.warning(
+                    "Both varying requests and request rate/distribution provided. Ignoring request rate/distribution"
+                )
+                args.request_distribution = None
+
+            args.request_distribution = ["poisson", "inf"]
 
         if not (args.num_of_req or args.max_time_for_reqs):
             logger.info("Number of requests and max time for requests not provided. Defaulting to 1 request.")
@@ -373,6 +406,7 @@ def run_main(args: argparse.Namespace) -> None:
         args.cookies,
         args.verbose,
         args.max_concurrent,
+        args.wave,
         args.logprobs,
     )
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.

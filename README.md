@@ -24,8 +24,10 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | one of <br> `--num-of-req` (`-n`) **or** <br> `--max-time-for-reqs` (`--timeout`) | <br> Total number of requests to send <br> time window for sending requests **(in seconds)** |
 | `--request-distribution` | Distribution for sending requests: <br> **eg:** `exponential 5` (request will follow an exponential distribution with an average time between requests of **5 seconds**) <br> options: <br> `poisson rate` <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--request-rate` (`-rps`) | Sets the request distribution to `poisson N`, such that approximately N requests are sent per second. |
+| `--max-concurrent` | Limits the number of concurrent in-flight requests to at most N requests. |
 | `--input-token-distribution` | Request distribution for prompt length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--output-token-distribution` | Request distribution for output token length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
+| `--varying-requests` (`--wave`) | Sends requests to maintain an oscillating request concurrency given min, max, and sustain. <br> eg: `-n 400 --wave 10 30 20`, will send 400 requests with concurrency between 10 and 30 requests, sustaining for the duration of 20 requests at concurrency extrema. See [this graph](https://drive.google.com/file/d/1c0qrWa3DIEGxJdZO7hcKmehrPreBl84V/view?usp=sharing) for a visual. |
 | `--workload` (`-w`) | One of a few presets that define the input and output token distributions for common use-cases. |
 | one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
 | `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |

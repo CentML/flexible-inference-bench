@@ -36,6 +36,7 @@ def test_backend_function(vllm_server, args_config):
         args.cookies,
         args.verbose,
         None,
+        None,
         None
     )
 
@@ -89,6 +90,7 @@ def test_backend_function(vllm_server, args_config):
         not args.disable_stream,
         args.cookies,
         args.verbose,
+        None,
         None,
         None
     )
