@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import traceback
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from pydantic import BaseModel, Field
 import aiohttp
 from tqdm.asyncio import tqdm
@@ -20,6 +20,7 @@ class bcolors:
 
 class RequestFuncInput(BaseModel):
     prompt: str
+    media: List[str]
     api_url: str
     prompt_len: int
     output_len: int
@@ -398,11 +399,16 @@ async def async_request_openai_chat_completions(
         "v1/chat/completions"
     ), "OpenAI Chat Completions API URL must end with 'v1/chat/completions'."
 
+    content_body = [{"type": "text", "text": request_func_input.prompt}]
+
+    for media_item in request_func_input.media:
+        content_body.append({"type": "image_url", "image_url": {"url": media_item}})
+
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert not request_func_input.use_beam_search
         payload = {
             "model": request_func_input.model,
-            "messages": [{"role": "user", "content": request_func_input.prompt}],
+            "messages": [{"role": "user", "content": content_body}],
             "temperature": 0.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,

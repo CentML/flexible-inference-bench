@@ -30,6 +30,59 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
+def return_random_image_URL_by_size(width, height):
+    return f"https://picsum.photos/{width}/{height}"
+
+
+def parse_tuple(value):
+    """
+    Parses a width-height pair into a tuple of ints.
+
+    Example:
+        "1280x720" -> (1280, 720)
+    """
+    try:
+        return tuple(map(int, value.split("x")))
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid format: {value}. Must be a 'widthxheight' pair, e.g., '1920x1080' OR '1280x720'."
+        )
+
+
+# Specify the number and dimensions of images to be attached to each request
+def generate_request_media(args: argparse.Namespace, size) -> Union[List[List[Union[Tuple[int, int], str]]], None]:
+
+    num_imgs_per_req = args.num_of_imgs_per_req
+    if not num_imgs_per_req:
+        return [[] for _ in range(size)]
+    ratios = args.img_ratios_per_req
+
+    media_per_request = []
+    img_cntr = 0
+    for i in range(size):
+        media_per_request.append([])
+        for j in range(int(num_imgs_per_req)):
+            # If img_base_path is provided, store the image locally
+            # Otherwise, feed the image online
+            if args.img_base_path:
+                # If an image doesn't exist, download it
+                img_path = os.path.join(args.img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
+                if not os.path.exists(img_path):
+                    os.makedirs(args.img_base_path, exist_ok=True)
+                    logger.info(f"Downloading image to {img_path} ...")
+                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                    img_data = requests.get(img_url).content
+                    with open(img_path, 'wb') as handler:
+                        handler.write(img_data)
+                media_per_request[-1].append('file://' + img_path)
+            else:
+                # Fetch the image online with the ratios
+                media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
+            img_cntr += 1
+
+    return media_per_request
+
+
 def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
     dist_type = args[0]
     dist_args = (float(i) for i in args[1:])
@@ -104,9 +157,12 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
 
 
 def send_requests(
-    client: Client, requests_prompts: List[Tuple[str, int, int]], requests_times: List[Union[int, float]]
+    client: Client,
+    requests_prompts: List[Tuple[str, int, int]],
+    requests_times: List[Union[int, float]],
+    requests_media: List[List[Union[Tuple[int, int], str]]],
 ) -> List[Any]:
-    return asyncio.run(client.benchmark(requests_prompts, requests_times))
+    return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
 
 
 def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # type: ignore [type-arg]
@@ -152,6 +208,30 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     req_group.add_argument(
         "--max-time-for-reqs", "--timeout", type=int, default=None, help="Max time for requests in seconds."
+    )
+
+    benchmark_parser.add_argument(
+        "--num-of-imgs-per-req",
+        type=int,
+        default=None,
+        help="Number of images to attach to each request. Example: '3'.",
+    )
+
+    benchmark_parser.add_argument(
+        "--img-ratios-per-req",
+        type=parse_tuple,
+        default='500x500',
+        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'.",
+    )
+
+    benchmark_parser.add_argument(
+        "--img-base-path",
+        type=str,
+        default=None,
+        help="Base image directory. Example: '/path/to/imgs/'. If provided, images will be downloaded to"
+        " this directory before benchmarking and fed from here. If not provided, images will be fed online,"
+        " which could cause excessive network delays in large numbers. To enable this, the serving engine"
+        " also needs to start with the --allowed-local-media-path /path/to/imgs/ option.",
     )
 
     benchmark_parser.add_argument(
@@ -380,12 +460,14 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
+    requests_media = generate_request_media(args, size)
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
+    requests_media = requests_media[:min_length]
 
     set_max_open_files(min_length + 256)
 
@@ -413,14 +495,14 @@ def run_main(args: argparse.Namespace) -> None:
     client_verbose_value = client.verbose
     client.verbose = False
     logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0]))
+    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
     if not validate_endpoint.success:
         logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
         sys.exit()
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
     t = time.perf_counter()
-    output_list: List[Any] = send_requests(client, requests_prompts, requests_times)
+    output_list: List[Any] = send_requests(client, requests_prompts, requests_times, requests_media)
     benchmark_time = time.perf_counter() - t
     # pylint: disable=line-too-long
     output = {

@@ -29,6 +29,9 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--output-token-distribution` | Request distribution for output token length. eg: <br> `uniform min_val max_val` <br> `normal mean std`. |
 | `--varying-requests` (`--wave`) | Sends requests to maintain an oscillating request concurrency given min, max, and sustain. <br> eg: `-n 400 --wave 10 30 20`, will send 400 requests with concurrency between 10 and 30 requests, sustaining for the duration of 20 requests at concurrency extrema. See [this graph](https://drive.google.com/file/d/1c0qrWa3DIEGxJdZO7hcKmehrPreBl84V/view?usp=sharing) for a visual. |
 | `--workload` (`-w`) | One of a few presets that define the input and output token distributions for common use-cases. |
+| `--num-of-imgs-per-req` | Number of images to attach to each request. Example: `3`. |
+| `--img-ratios-per-req` | Image aspect ratios (width x height) to attach per request. Example: `1000x1000`. Default: `500x500` |
+| `--img-base-path` | Base image directory. Example: `/path/to/imgs/`. If provided, images will be downloaded to this directory before benchmarking and fed from here. If not provided, images will be fed online, which could cause excessive network delays in large numbers. To enable this, the serving engine also needs to start with the `--allowed-local-media-path /path/to/imgs/` option. Default: `None`. |
 | one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
 | `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
 | `--dataset-path` | Path to the dataset. If `sharegpt` is the dataset and this is not provided, it will be automatically downloaded and cached. Otherwise, the dataset name will default to `other`. |

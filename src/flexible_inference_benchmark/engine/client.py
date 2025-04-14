@@ -126,14 +126,16 @@ class Client:
         return request_result
 
     async def benchmark(
-        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]]
+        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]], requests_media: List[List[str]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
+        assert len(data) == len(requests_media), "Data and request media must have the same length"
         pbar = None if self.disable_tqdm else tqdm(total=len(data))
 
         request_func_inputs = [
             RequestFuncInput(
                 prompt=data_sample[0],
+                media=media_sample,
                 api_url=self.api_url,
                 prompt_len=data_sample[1],
                 output_len=data_sample[2],
@@ -146,7 +148,7 @@ class Client:
                 cookies=self.cookies,
                 logprobs=self.logprobs,
             )
-            for data_sample in data
+            for (data_sample, media_sample) in zip(data, requests_media)
         ]
 
         if self.wave:
@@ -168,9 +170,12 @@ class Client:
                 ]
             )
 
-    async def validate_url_endpoint(self, request: Tuple[str, int, int]) -> Union[RequestFuncOutput, Any]:
+    async def validate_url_endpoint(
+        self, request: Tuple[str, int, int], media_item: List[str]
+    ) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
             prompt=request[0],
+            media=media_item,
             api_url=self.api_url,
             prompt_len=request[1],
             output_len=request[2],

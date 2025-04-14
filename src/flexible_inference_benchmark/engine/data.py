@@ -164,7 +164,10 @@ class Random(Data):
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int = 10,
     ) -> "Random":
-        token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
+        ## Specifying the middle 50% range to avoid accidental generation of <image> tokens
+        token_distribution = distributions.UniformInt(
+            len(tokenizer.get_vocab()) // 4, 3 * len(tokenizer.get_vocab()) // 4
+        )
 
         return cls(
             prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
