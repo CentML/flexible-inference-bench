@@ -64,10 +64,7 @@ class Client:
             return await self.request_func(idx, data, pbar, self.verbose, wait_time)
 
     async def benchmark(
-        self,
-        data: List[Tuple[str, int, int]],
-        request_times: List[Union[float, int]],
-        requests_media: List[List[str]]
+        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]], requests_media: List[List[str]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
         assert len(data) == len(request_times), "Data and request times must have the same length"
         assert len(data) == len(requests_media), "Data and request media must have the same length"
@@ -101,7 +98,9 @@ class Client:
             ]
         )
 
-    async def validate_url_endpoint(self, request: Tuple[str, int, int], media_item: List[str]) -> Union[RequestFuncOutput, Any]:
+    async def validate_url_endpoint(
+        self, request: Tuple[str, int, int], media_item: List[str]
+    ) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
             prompt=request[0],
             media=media_item,

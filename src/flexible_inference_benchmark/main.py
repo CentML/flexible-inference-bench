@@ -37,7 +37,7 @@ def return_random_image_URL_by_size(width, height):
 def parse_tuple(value):
     """
     Parses a width-height pair into a tuple of ints.
-    
+
     Example:
         "1280x720" -> (1280, 720)
     """
@@ -50,8 +50,7 @@ def parse_tuple(value):
 
 
 # Specify the number and dimensions of images to be attached to each request
-def generate_request_media(args: argparse.Namespace, size) \
-    -> Union[List[List[Union[Tuple[int, int], str]]], None]:
+def generate_request_media(args: argparse.Namespace, size) -> Union[List[List[Union[Tuple[int, int], str]]], None]:
 
     num_imgs_per_req = args.num_of_imgs_per_req
     if not num_imgs_per_req:
@@ -80,7 +79,7 @@ def generate_request_media(args: argparse.Namespace, size) \
                 # Fetch the image online with the ratios
                 media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
             img_cntr += 1
-    
+
     return media_per_request
 
 
@@ -211,23 +210,23 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--num-of-imgs-per-req",
         type=int,
         default=None,
-        help="Number of images to attach to each request. Example: '3'."
+        help="Number of images to attach to each request. Example: '3'.",
     )
 
     benchmark_parser.add_argument(
         "--img-ratios-per-req",
         type=parse_tuple,
         default='500x500',
-        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'."
+        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'.",
     )
 
     benchmark_parser.add_argument(
         "--img-base-path",
         type=str,
         default=None,
-        help="Base image directory. Example: '/path/to/imgs/'. If provided, images will be downloaded to" \
-        " this directory before benchmarking and fed from here. If not provided, images will be fed online," \
-        " which could cause excessive network delays in large numbers. To enable this, the serving engine" \
+        help="Base image directory. Example: '/path/to/imgs/'. If provided, images will be downloaded to"
+        " this directory before benchmarking and fed from here. If not provided, images will be fed online,"
+        " which could cause excessive network delays in large numbers. To enable this, the serving engine"
         " also needs to start with the --allowed-local-media-path /path/to/imgs/ option.",
     )
 

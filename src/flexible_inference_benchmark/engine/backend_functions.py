@@ -391,20 +391,10 @@ async def async_request_openai_chat_completions(
         "v1/chat/completions"
     ), "OpenAI Chat Completions API URL must end with 'v1/chat/completions'."
 
-    content_body = [
-        {
-            "type": "text",
-            "text": request_func_input.prompt,
-        },
-    ]
+    content_body = [{"type": "text", "text": request_func_input.prompt}]
 
     for media_item in request_func_input.media:
-        content_body.append({
-            "type": "image_url",
-            "image_url": {
-                "url": media_item,
-            },
-        })
+        content_body.append({"type": "image_url", "image_url": {"url": media_item}})
 
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert not request_func_input.use_beam_search
