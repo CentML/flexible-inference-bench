@@ -231,6 +231,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--num-validation-reqs",
+        type=int,
+        default=None,
+        help="Number of requests to send for validation and warmup before the benchmark.",
+    )
+    
+    benchmark_parser.add_argument(
         "--max-concurrent",
         type=int,
         default=None,
@@ -471,16 +478,17 @@ def run_main(args: argparse.Namespace) -> None:
 
     if args.profile:
         logger.info("Starting the Torch profiler.")
-        validate_profiler = asyncio.run(client.start_torch_profiler(requests_prompts[0]))
-        if not validate_profiler.success:
-            logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
-            sys.exit()
+        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0]))
+        # if not validate_profiler.success:
+        #     logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
+        #     sys.exit()
 
-    logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
-    if not validate_endpoint.success:
-        logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-        sys.exit()
+    logger.info(f"Sending {args.num_validation_reqs} requests for validation and warmup.")
+    for i in range(args.num_validation_reqs):
+        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
+        if not validate_endpoint.success:
+            logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
+            sys.exit()
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
     t = time.perf_counter()
@@ -489,10 +497,10 @@ def run_main(args: argparse.Namespace) -> None:
 
     if args.profile:
         logger.info("Stopping the Torch profiler.")
-        validate_profiler = asyncio.run(client.stop_torch_profiler(requests_prompts[0]))
-        if not validate_profiler.success:
-            logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
-            sys.exit()
+        asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0]))
+        # if not validate_profiler.success:
+        #     logger.info(f"{validate_profiler.error}.\nExiting benchmark ....")
+        #     sys.exit()
 
     # pylint: disable=line-too-long
     output = {
