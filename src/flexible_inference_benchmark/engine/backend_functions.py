@@ -448,10 +448,15 @@ async def async_request_openai_chat_completions(
 
                             delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
                             content = delta.get("content", None) if delta is not None else None
+                            reasoning_content = delta.get("reasoning_content", None) if delta is not None else None
                             # Make sure to include the content if it's not None
                             # Since EOS can translate to an empty string, include `content == ""`
                             # as long as it's not the first token
-                            if content is not None and not (ttft == 0.0 and content == ''):
+                            if (
+                                (content is not None
+                                or reasoning_content is not None)
+                                and not (ttft == 0.0 and (content == '' or reasoning_content == ''))
+                            ):
                                 # First token
                                 if ttft == 0.0:
                                     ttft = time.perf_counter() - st
@@ -460,8 +465,10 @@ async def async_request_openai_chat_completions(
                                 # Decoding phase
                                 else:
                                     output.itl.append(timestamp - most_recent_timestamp)
-
-                                generated_text += delta["content"]
+                                if content:
+                                    generated_text += content
+                                elif reasoning_content:
+                                    generated_text += reasoning_content
                                 most_recent_timestamp = timestamp
 
                             if "usage" in data:
