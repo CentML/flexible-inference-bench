@@ -455,7 +455,7 @@ async def async_request_openai_chat_completions(
                             if (
                                 content is not None
                                 or reasoning_content is not None
-                                and not (ttft == 0.0 and content == '' and reasoning_content == '')
+                                and not (ttft == 0.0 and (content == '' or reasoning_content == ''))
                             ):
                                 # First token
                                 if ttft == 0.0:
@@ -466,9 +466,9 @@ async def async_request_openai_chat_completions(
                                 else:
                                     output.itl.append(timestamp - most_recent_timestamp)
                                 if content:
-                                    generated_text += delta["content"]
+                                    generated_text += content
                                 elif reasoning_content:
-                                    generated_text += delta["reasoning_content"]
+                                    generated_text += reasoning_content
                                 most_recent_timestamp = timestamp
 
                             if "usage" in data:
