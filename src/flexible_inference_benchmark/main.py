@@ -289,7 +289,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--ignore-input-distribution",
         action="store_true",
-        help="Use prefix only for input and ignore the input token distribution",
+        help="Ignore the input token distribution. This is meant to be used with --prefix-len or --prefix-text.",
     )
 
     benchmark_parser.add_argument(
