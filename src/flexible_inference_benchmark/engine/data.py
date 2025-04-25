@@ -60,6 +60,7 @@ class Textfile(Data):
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int,
+        ignore_input_distribution: bool,
     ) -> None:
         self.prefix_str = prefix_str
         self.prefill_distribution = prefill_distribution
@@ -68,6 +69,7 @@ class Textfile(Data):
         self.tokenizer = tokenizer
         self.data = data
         self.num_trials = num_trials
+        self.ignore_input_distribution = ignore_input_distribution
 
     @classmethod
     def with_prefix_str(
@@ -77,13 +79,22 @@ class Textfile(Data):
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
+        ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Textfile":
         with open(filename) as f:
             text = f.read()
         data = tokenizer.encode(text)
 
-        return cls(data, prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials)
+        return cls(
+            data,
+            prefix_str,
+            prefill_distribution,
+            output_token_distribution,
+            tokenizer,
+            num_trials,
+            ignore_input_distribution,
+        )
 
     @classmethod
     def with_prefix_len(
@@ -93,6 +104,7 @@ class Textfile(Data):
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
+        ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Textfile":
         with open(filename) as f:
@@ -107,7 +119,13 @@ class Textfile(Data):
         prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
 
         return cls(
-            data[prefix_end:], prefix_str, prefill_distribution, output_token_distribution, tokenizer, num_trials
+            data[prefix_end:],
+            prefix_str,
+            prefill_distribution,
+            output_token_distribution,
+            tokenizer,
+            num_trials,
+            ignore_input_distribution,
         )
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
@@ -118,23 +136,29 @@ class Textfile(Data):
         starts = self.start_distribution.generate_distribution(lengths)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
-        for i in range(size):
-            if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
-                continue
-            prompt_end = get_data_end(self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials)
-            achieved_len = (prompt_end - starts[i]) + prefix_len
-
-            input_data.append(
-                (
-                    self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
-                    achieved_len,
-                    output_tokens[i],
+        if self.ignore_input_distribution:
+            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+        else:
+            for i in range(size):
+                if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
+                    continue
+                prompt_end = get_data_end(
+                    self.data, self.tokenizer, starts[i], lengths[i] - prefix_len, self.num_trials
                 )
-            )
+                achieved_len = (prompt_end - starts[i]) + prefix_len
+
+                input_data.append(
+                    (
+                        self.prefix_str + self.tokenizer.decode(self.data[starts[i] : prompt_end]),
+                        achieved_len,
+                        output_tokens[i],
+                    )
+                )
 
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
+
         return random.sample(input_data, size)
 
 
@@ -147,6 +171,7 @@ class Random(Data):
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
         num_trials: int,
+        ignore_input_distribution: bool,
     ) -> None:
         self.tokenizer = tokenizer
         self.prefill_distribution = prefill_distribution
@@ -154,6 +179,7 @@ class Random(Data):
         self.output_token_distribution = output_token_distribution
         self.prefix_str = prefix_str
         self.num_trials = num_trials
+        self.ignore_input_distribution = ignore_input_distribution
 
     @classmethod
     def with_prefix_str(
@@ -162,6 +188,7 @@ class Random(Data):
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
+        ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Random":
         ## Specifying the middle 50% range to avoid accidental generation of <image> tokens
@@ -170,7 +197,13 @@ class Random(Data):
         )
 
         return cls(
-            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+            prefix_str,
+            prefill_distribution,
+            token_distribution,
+            output_token_distribution,
+            tokenizer,
+            num_trials,
+            ignore_input_distribution,
         )
 
     @classmethod
@@ -180,6 +213,7 @@ class Random(Data):
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
         tokenizer: transformers.PreTrainedTokenizer,
+        ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Random":
         token_distribution = distributions.UniformInt(0, len(tokenizer.get_vocab()))
@@ -188,7 +222,13 @@ class Random(Data):
         prefix_str = tokenizer.decode(data[:prefix_end]) if prefix_end > 0 else ""
 
         return cls(
-            prefix_str, prefill_distribution, token_distribution, output_token_distribution, tokenizer, num_trials
+            prefix_str,
+            prefill_distribution,
+            token_distribution,
+            output_token_distribution,
+            tokenizer,
+            num_trials,
+            ignore_input_distribution,
         )
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
@@ -197,16 +237,19 @@ class Random(Data):
         output_tokens = self.output_token_distribution.generate_distribution(size)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
-        for i in range(size):
-            data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
-            if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
-                continue
-            prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
-            achieved_len = prompt_end + prefix_len
+        if self.ignore_input_distribution:
+            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+        else:
+            for i in range(size):
+                data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
+                if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
+                    continue
+                prompt_end = get_data_end(data, self.tokenizer, 0, lengths[i] - prefix_len, self.num_trials)
+                achieved_len = prompt_end + prefix_len
 
-            input_data.append(
-                (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])
-            )
+                input_data.append(
+                    (self.prefix_str + self.tokenizer.decode(data[:prompt_end]), achieved_len, output_tokens[i])
+                )
 
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")

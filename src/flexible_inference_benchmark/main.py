@@ -127,18 +127,34 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
 
         if args.prefix_len:
             prompt_cls = (
-                Random.with_prefix_len(args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_len(
+                    args.prefix_len, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                )
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_len(
-                    filename, args.prefix_len, input_prompt_dist, output_token_dist, tokenizer
+                    filename,
+                    args.prefix_len,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
                 )
             )
         else:
             prefix_text = args.prefix_text or ""
             prompt_cls = (
-                Random.with_prefix_str(prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_str(
+                    prefix_text, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                )
                 if args.dataset_name == "random"
-                else Textfile.with_prefix_str(filename, prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                else Textfile.with_prefix_str(
+                    filename,
+                    prefix_text,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
+                )
             )
 
     if not prompt_cls:
@@ -268,6 +284,12 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         nargs="*",
         default=["uniform", 1, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
+    )
+
+    benchmark_parser.add_argument(
+        "--ignore-input-distribution",
+        action="store_true",
+        help="Ignore the input token distribution. This is meant to be used with --prefix-len or --prefix-text.",
     )
 
     benchmark_parser.add_argument(
