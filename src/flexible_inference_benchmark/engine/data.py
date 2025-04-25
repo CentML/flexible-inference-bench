@@ -136,10 +136,10 @@ class Textfile(Data):
         starts = self.start_distribution.generate_distribution(lengths)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
-        for i in range(size):
-            if self.ignore_input_distribution:
-                input_data.append([self.prefix_str, prefix_len, output_tokens[i]])
-            else:
+        if self.ignore_input_distribution:
+            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+        else:
+            for i in range(size):
                 if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                     continue
                 prompt_end = get_data_end(
@@ -154,9 +154,11 @@ class Textfile(Data):
                         output_tokens[i],
                     )
                 )
+
         if len(input_data) < size:
             logger.debug(f"Generating {len(input_data)} requests instead of {size} requests.")
             return input_data
+
         return random.sample(input_data, size)
 
 
@@ -235,10 +237,10 @@ class Random(Data):
         output_tokens = self.output_token_distribution.generate_distribution(size)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
-        for i in range(size):
-            if self.ignore_input_distribution:
-                input_data.append([self.prefix_str, prefix_len, output_tokens[i]])
-            else:
+        if self.ignore_input_distribution:
+            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+        else:
+            for i in range(size):
                 data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
                 if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
                     continue
