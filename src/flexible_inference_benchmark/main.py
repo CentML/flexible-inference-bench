@@ -36,51 +36,55 @@ def return_random_image_URL_by_size(width, height):
 
 def parse_tuple(value):
     """
-    Parses a width-height pair into a tuple of ints.
+    Parses a string of width-height pairs into a list of tuples of ints.
 
     Example:
-        "1280x720" -> (1280, 720)
+        "1280x720,256x256" -> [(1280, 720),(256, 256)]
     """
     try:
-        return tuple(map(int, value.split("x")))
+        return list(map(lambda x: tuple(map(int, x.split('x'))), value.split(',')))
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"Invalid format: {value}. Must be a 'widthxheight' pair, e.g., '1920x1080' OR '1280x720'."
+            f"Invalid format: {value}. Must be a single string with 'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'"
         )
 
 
 # Specify the number and dimensions of images to be attached to each request
-def generate_request_media(args: argparse.Namespace, size) -> Union[List[List[Union[Tuple[int, int], str]]], None]:
+def generate_request_media(
+    num_of_imgs_per_req: int, img_ratios_per_req: List[Tuple[int, int]], img_base_path: Union[str, None], size: int
+) -> List[List[List[Union[str, None]]]]:
 
-    num_imgs_per_req = args.num_of_imgs_per_req
+    num_imgs_per_req = num_of_imgs_per_req
     if not num_imgs_per_req:
-        return [[] for _ in range(size)]
-    ratios = args.img_ratios_per_req
+        return [[[] for _ in range(size)]]
 
-    media_per_request = []
-    img_cntr = 0
-    for i in range(size):
-        media_per_request.append([])
-        for j in range(int(num_imgs_per_req)):
-            # If img_base_path is provided, store the image locally
-            # Otherwise, feed the image online
-            if args.img_base_path:
-                # If an image doesn't exist, download it
-                img_path = os.path.join(args.img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
-                if not os.path.exists(img_path):
-                    os.makedirs(args.img_base_path, exist_ok=True)
-                    logger.info(f"Downloading image to {img_path} ...")
-                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
-                    img_data = requests.get(img_url).content
-                    with open(img_path, 'wb') as handler:
-                        handler.write(img_data)
-                media_per_request[-1].append('file://' + img_path)
-            else:
-                # Fetch the image online with the ratios
-                media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
-            img_cntr += 1
+    results = []
+    for ratios in img_ratios_per_req:
+        media_per_request = []
+        img_cntr = 0
+        for i in range(size):
+            media_per_request.append([])
+            for j in range(int(num_imgs_per_req)):
+                # If img_base_path is provided, store the image locally
+                # Otherwise, feed the image online
+                if img_base_path:
+                    # If an image doesn't exist, download it
+                    img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
+                    if not os.path.exists(img_path):
+                        os.makedirs(img_base_path, exist_ok=True)
+                        logger.info(f"Downloading image to {img_path} ...")
+                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                        img_data = requests.get(img_url).content
+                        with open(img_path, 'wb') as handler:
+                            handler.write(img_data)
+                    media_per_request[-1].append('file://' + img_path)
+                else:
+                    # Fetch the image online with the ratios
+                    media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
+                img_cntr += 1
 
-    return media_per_request
+        results.append(media_per_request)
+    return results
 
 
 def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
@@ -237,7 +241,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--img-ratios-per-req",
         type=parse_tuple,
         default='500x500',
-        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'.",
+        help="Single string with image aspect ratios (width x height) separated by commas to attach per request. Example: '256x256,500x500'.",
     )
 
     benchmark_parser.add_argument(
@@ -482,14 +486,14 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_media = generate_request_media(args, size)
+    requests_media = generate_request_media(args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size)
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
-    requests_media = requests_media[:min_length]
+    requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
     set_max_open_files(min_length + 256)
 
@@ -517,32 +521,42 @@ def run_main(args: argparse.Namespace) -> None:
     client_verbose_value = client.verbose
     client.verbose = False
     logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
+    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
     if not validate_endpoint.success:
         logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-        sys.exit()
+        sys.exit(1)
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
-    t = time.perf_counter()
-    output_list: List[Any] = send_requests(client, requests_prompts, requests_times, requests_media)
-    benchmark_time = time.perf_counter() - t
-    # pylint: disable=line-too-long
-    output = {
-        "backend": args.backend,
-        "time": benchmark_time,
-        "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-        "inputs": requests_prompts,
-        "tokenizer": args.tokenizer if args.tokenizer else args.model,
-        "stream": not args.disable_stream,
-    }
 
-    if args.output_file:
-        with open(args.output_file, "w") as f:
-            f.write(json.dumps(output, indent=4))  # type: ignore
-    if args.debug:
-        logger.debug(f"{output_list}")
+    for idx, arr_dims in enumerate(requests_media):
+        if args.num_of_imgs_per_req:
+            logger.info(
+                f"Benchmarking with {args.num_of_imgs_per_req} images per request with ratio {args.img_ratios_per_req[idx]}"
+            )
+        t = time.perf_counter()
+        output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
+        benchmark_time = time.perf_counter() - t
+        # pylint: disable=line-too-long
+        output = {
+            "backend": args.backend,
+            "time": benchmark_time,
+            "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
+            "inputs": requests_prompts,
+            "tokenizer": args.tokenizer if args.tokenizer else args.model,
+            "stream": not args.disable_stream,
+        }
 
-    calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+        if args.output_file:
+            filename = args.output_file
+            if args.num_of_imgs_per_req:
+                w, h = args.img_ratios_per_req[idx]
+                filename = f"ratio_{w}x{h}_{filename}"
+            with open(filename, "w") as f:
+                f.write(json.dumps(output, indent=4))  # type: ignore
+        if args.debug:
+            logger.debug(f"{output_list}")
+
+        calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
 
 
 def main() -> None:

@@ -452,10 +452,8 @@ async def async_request_openai_chat_completions(
                             # Make sure to include the content if it's not None
                             # Since EOS can translate to an empty string, include `content == ""`
                             # as long as it's not the first token
-                            if (
-                                (content is not None
-                                or reasoning_content is not None)
-                                and not (ttft == 0.0 and (content == '' or reasoning_content == ''))
+                            if (content is not None or reasoning_content is not None) and not (
+                                ttft == 0.0 and (content == '' or reasoning_content == '')
                             ):
                                 # First token
                                 if ttft == 0.0:
