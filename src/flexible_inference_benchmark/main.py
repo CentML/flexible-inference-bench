@@ -10,8 +10,8 @@ import time
 from typing import List, Any, Tuple, Union
 import requests
 import numpy as np
-from transformers import AutoTokenizer # type: ignore[attr-defined]
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase # type: ignore[attr-defined]
+from transformers import AutoTokenizer  # type: ignore[attr-defined]
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
 from flexible_inference_benchmark.utils.utils import (
     configure_logging,
@@ -43,15 +43,13 @@ def parse_tuple(value: str) -> List[Tuple[int, int]]:
         "1280x720,256x256" -> [(1280, 720),(256, 256)]
     """
     try:
-        return [
-            (int(width), int(height))
-            for part in value.split(',')
-            for width, height in [part.split('x')]
-        ]
+        return [(int(width), int(height)) for part in value.split(',') for width, height in [part.split('x')]]
     except ValueError as e:
         raise argparse.ArgumentTypeError(
-            (f"Invalid format: {value}. Must be a single string with "
-             "'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'")
+            (
+                f"Invalid format: {value}. Must be a single string with "
+                "'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'"
+            )
         ) from e
 
 
@@ -119,7 +117,9 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int) -> List[Tuple[str, int, int]]:
+def generate_prompts(
+    args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int
+) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name.startswith('sharegpt'):
@@ -247,8 +247,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--img-ratios-per-req",
         type=parse_tuple,
         default='500x500',
-        help=("Single string with image aspect ratios (width x height) separated by commas "
-        "to attach per request. Example: '256x256,500x500'."),
+        help=(
+            "Single string with image aspect ratios (width x height) separated by commas "
+            "to attach per request. Example: '256x256,500x500'."
+        ),
     )
 
     benchmark_parser.add_argument(
@@ -538,8 +540,10 @@ def run_main(args: argparse.Namespace) -> None:
     for idx, arr_dims in enumerate(requests_media):
         if args.num_of_imgs_per_req:
             logger.info(
-                (f"Benchmarking with {args.num_of_imgs_per_req} images per request "
-                 f"with ratio {args.img_ratios_per_req[idx]}")
+                (
+                    f"Benchmarking with {args.num_of_imgs_per_req} images per request "
+                    f"with ratio {args.img_ratios_per_req[idx]}"
+                )
             )
         t = time.perf_counter()
         output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)

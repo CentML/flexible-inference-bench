@@ -6,15 +6,13 @@ import random
 import os
 from hashlib import sha256
 
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase # type: ignore[attr-defined]
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine import distributions
 
 logger = logging.getLogger(__name__)
 
 
-def get_data_end(
-    data: List[int], tokenizer: PreTrainedTokenizerBase, idx: int, length: int, num_trials: int
-) -> int:
+def get_data_end(data: List[int], tokenizer: PreTrainedTokenizerBase, idx: int, length: int, num_trials: int) -> int:
     assert length >= 0 and idx >= 0
     if length == 0:
         return idx
