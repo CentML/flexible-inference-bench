@@ -7,7 +7,7 @@ black==24.3.0
 pylint==2.13.9
 
 # mypy
-mypy==1.8.0
+mypy==1.15.0
 
 # tests
 pytest

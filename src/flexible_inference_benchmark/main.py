@@ -10,7 +10,8 @@ import time
 from typing import List, Any, Tuple, Union
 import requests
 import numpy as np
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer # type: ignore[attr-defined]
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
 from flexible_inference_benchmark.utils.utils import (
     configure_logging,
@@ -30,11 +31,11 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_URL_by_size(width, height):
+def return_random_image_URL_by_size(width: int, height: int) -> str:
     return f"https://picsum.photos/{width}/{height}"
 
 
-def parse_tuple(value):
+def parse_tuple(value: str) -> List[Tuple[int, int]]:
     """
     Parses a string of width-height pairs into a list of tuples of ints.
 
@@ -42,29 +43,34 @@ def parse_tuple(value):
         "1280x720,256x256" -> [(1280, 720),(256, 256)]
     """
     try:
-        return list(map(lambda x: tuple(map(int, x.split('x'))), value.split(',')))
-    except ValueError:
+        return [
+            (int(width), int(height))
+            for part in value.split(',')
+            for width, height in [part.split('x')]
+        ]
+    except ValueError as e:
         raise argparse.ArgumentTypeError(
-            f"Invalid format: {value}. Must be a single string with 'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'"
-        )
+            (f"Invalid format: {value}. Must be a single string with "
+             "'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'")
+        ) from e
 
 
 # Specify the number and dimensions of images to be attached to each request
 def generate_request_media(
     num_of_imgs_per_req: int, img_ratios_per_req: List[Tuple[int, int]], img_base_path: Union[str, None], size: int
-) -> List[List[List[Union[str, None]]]]:
+) -> List[List[List[str]]]:
 
     num_imgs_per_req = num_of_imgs_per_req
     if not num_imgs_per_req:
         return [[[] for _ in range(size)]]
 
-    results = []
+    results: List[List[List[str]]] = []
     for ratios in img_ratios_per_req:
-        media_per_request = []
+        media_per_request: List[List[str]] = []
         img_cntr = 0
-        for i in range(size):
+        for _ in range(size):
             media_per_request.append([])
-            for j in range(int(num_imgs_per_req)):
+            for _ in range(int(num_imgs_per_req)):
                 # If img_base_path is provided, store the image locally
                 # Otherwise, feed the image online
                 if img_base_path:
@@ -113,7 +119,7 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[str, int, int]]:
+def generate_prompts(args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name.startswith('sharegpt'):
@@ -180,7 +186,7 @@ def send_requests(
     client: Client,
     requests_prompts: List[Tuple[str, int, int]],
     requests_times: List[Union[int, float]],
-    requests_media: List[List[Union[Tuple[int, int], str]]],
+    requests_media: List[List[str]],
 ) -> List[Any]:
     return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
 
@@ -241,7 +247,8 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--img-ratios-per-req",
         type=parse_tuple,
         default='500x500',
-        help="Single string with image aspect ratios (width x height) separated by commas to attach per request. Example: '256x256,500x500'.",
+        help=("Single string with image aspect ratios (width x height) separated by commas "
+        "to attach per request. Example: '256x256,500x500'."),
     )
 
     benchmark_parser.add_argument(
@@ -488,7 +495,7 @@ def run_main(args: argparse.Namespace) -> None:
     size = len(requests_times)
     requests_media = generate_request_media(args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size)
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
@@ -531,7 +538,8 @@ def run_main(args: argparse.Namespace) -> None:
     for idx, arr_dims in enumerate(requests_media):
         if args.num_of_imgs_per_req:
             logger.info(
-                f"Benchmarking with {args.num_of_imgs_per_req} images per request with ratio {args.img_ratios_per_req[idx]}"
+                (f"Benchmarking with {args.num_of_imgs_per_req} images per request "
+                 f"with ratio {args.img_ratios_per_req[idx]}")
             )
         t = time.perf_counter()
         output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
