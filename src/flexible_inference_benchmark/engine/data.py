@@ -6,15 +6,13 @@ import random
 import os
 from hashlib import sha256
 
-import transformers
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine import distributions
 
 logger = logging.getLogger(__name__)
 
 
-def get_data_end(
-    data: List[int], tokenizer: transformers.PreTrainedTokenizer, idx: int, length: int, num_trials: int
-) -> int:
+def get_data_end(data: List[int], tokenizer: PreTrainedTokenizerBase, idx: int, length: int, num_trials: int) -> int:
     assert length >= 0 and idx >= 0
     if length == 0:
         return idx
@@ -58,7 +56,7 @@ class Textfile(Data):
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         num_trials: int,
         ignore_input_distribution: bool,
     ) -> None:
@@ -78,7 +76,7 @@ class Textfile(Data):
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Textfile":
@@ -103,7 +101,7 @@ class Textfile(Data):
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Textfile":
@@ -130,14 +128,14 @@ class Textfile(Data):
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         # Can save memory by using a generator. However for performance we will use a list
-        input_data = []
+        input_data: List[Tuple[str, int, int]] = []
         lengths = self.prefill_distribution.generate_distribution(size)
         output_tokens = self.output_token_distribution.generate_distribution(size)
         starts = self.start_distribution.generate_distribution(lengths)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
         if self.ignore_input_distribution:
-            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+            input_data = [(self.prefix_str, prefix_len, output_tokens[i]) for i in range(size)]
         else:
             for i in range(size):
                 if lengths[i] - prefix_len < 0:  # skip when sampling length less than prefix
@@ -169,7 +167,7 @@ class Random(Data):
         prefill_distribution: distributions.Distribution,
         token_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         num_trials: int,
         ignore_input_distribution: bool,
     ) -> None:
@@ -187,7 +185,7 @@ class Random(Data):
         prefix_str: str,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Random":
@@ -212,7 +210,7 @@ class Random(Data):
         prefix_len: int,
         prefill_distribution: distributions.Distribution,
         output_token_distribution: distributions.Distribution,
-        tokenizer: transformers.PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
         ignore_input_distribution: bool,
         num_trials: int = 10,
     ) -> "Random":
@@ -232,13 +230,13 @@ class Random(Data):
         )
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
-        input_data = []
+        input_data: List[Tuple[str, int, int]] = []
         lengths = self.prefill_distribution.generate_distribution(size)
         output_tokens = self.output_token_distribution.generate_distribution(size)
         prefix_len = len(self.tokenizer.encode(self.prefix_str))
 
         if self.ignore_input_distribution:
-            input_data = [[self.prefix_str, prefix_len, output_tokens[i]] for i in range(size)]
+            input_data = [(self.prefix_str, prefix_len, output_tokens[i]) for i in range(size)]
         else:
             for i in range(size):
                 data = list(self.token_distribution.generate_distribution(lengths[i] + self.num_trials))
@@ -258,7 +256,7 @@ class Random(Data):
 
 
 class ShareGPT(Data):
-    def __init__(self, filename: str, tokenizer: transformers.PreTrainedTokenizer) -> None:
+    def __init__(self, filename: str, tokenizer: PreTrainedTokenizerBase) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
         self.tokenizer = tokenizer
