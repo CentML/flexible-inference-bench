@@ -233,7 +233,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--num-validation-reqs",
         type=int,
-        default=None,
+        default=1,
         help="Number of requests to send for validation and warmup before the benchmark.",
     )
     
