@@ -10,7 +10,8 @@ import time
 from typing import List, Any, Tuple, Union
 import requests
 import numpy as np
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer  # type: ignore[attr-defined]
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
 from flexible_inference_benchmark.utils.utils import (
     configure_logging,
@@ -30,57 +31,64 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_URL_by_size(width, height):
+def return_random_image_URL_by_size(width: int, height: int) -> str:
     return f"https://picsum.photos/{width}/{height}"
 
 
-def parse_tuple(value):
+def parse_tuple(value: str) -> List[Tuple[int, int]]:
     """
-    Parses a width-height pair into a tuple of ints.
+    Parses a string of width-height pairs into a list of tuples of ints.
 
     Example:
-        "1280x720" -> (1280, 720)
+        "1280x720,256x256" -> [(1280, 720),(256, 256)]
     """
     try:
-        return tuple(map(int, value.split("x")))
-    except ValueError:
+        return [(int(width), int(height)) for part in value.split(',') for width, height in [part.split('x')]]
+    except ValueError as e:
         raise argparse.ArgumentTypeError(
-            f"Invalid format: {value}. Must be a 'widthxheight' pair, e.g., '1920x1080' OR '1280x720'."
-        )
+            (
+                f"Invalid format: {value}. Must be a single string with "
+                "'width1 x height1,...,widthN x heightN' pairs, e.g., '256x256,512x512'"
+            )
+        ) from e
 
 
 # Specify the number and dimensions of images to be attached to each request
-def generate_request_media(args: argparse.Namespace, size) -> Union[List[List[Union[Tuple[int, int], str]]], None]:
+def generate_request_media(
+    num_of_imgs_per_req: int, img_ratios_per_req: List[Tuple[int, int]], img_base_path: Union[str, None], size: int
+) -> List[List[List[str]]]:
 
-    num_imgs_per_req = args.num_of_imgs_per_req
+    num_imgs_per_req = num_of_imgs_per_req
     if not num_imgs_per_req:
-        return [[] for _ in range(size)]
-    ratios = args.img_ratios_per_req
+        return [[[] for _ in range(size)]]
 
-    media_per_request = []
-    img_cntr = 0
-    for i in range(size):
-        media_per_request.append([])
-        for j in range(int(num_imgs_per_req)):
-            # If img_base_path is provided, store the image locally
-            # Otherwise, feed the image online
-            if args.img_base_path:
-                # If an image doesn't exist, download it
-                img_path = os.path.join(args.img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
-                if not os.path.exists(img_path):
-                    os.makedirs(args.img_base_path, exist_ok=True)
-                    logger.info(f"Downloading image to {img_path} ...")
-                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
-                    img_data = requests.get(img_url).content
-                    with open(img_path, 'wb') as handler:
-                        handler.write(img_data)
-                media_per_request[-1].append('file://' + img_path)
-            else:
-                # Fetch the image online with the ratios
-                media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
-            img_cntr += 1
+    results: List[List[List[str]]] = []
+    for ratios in img_ratios_per_req:
+        media_per_request: List[List[str]] = []
+        img_cntr = 0
+        for _ in range(size):
+            media_per_request.append([])
+            for _ in range(int(num_imgs_per_req)):
+                # If img_base_path is provided, store the image locally
+                # Otherwise, feed the image online
+                if img_base_path:
+                    # If an image doesn't exist, download it
+                    img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
+                    if not os.path.exists(img_path):
+                        os.makedirs(img_base_path, exist_ok=True)
+                        logger.info(f"Downloading image to {img_path} ...")
+                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                        img_data = requests.get(img_url).content
+                        with open(img_path, 'wb') as handler:
+                            handler.write(img_data)
+                    media_per_request[-1].append('file://' + img_path)
+                else:
+                    # Fetch the image online with the ratios
+                    media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1]))
+                img_cntr += 1
 
-    return media_per_request
+        results.append(media_per_request)
+    return results
 
 
 def select_distribution(args: List[Any]) -> Union[Distribution, Any]:
@@ -99,13 +107,19 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         size = 1
         dist = select_distribution(args.request_distribution)
         # Check if any elements exceed max length
-        while not [i for i in dist.generate_distribution(size) if i > args.max_time_for_reqs]:
+        while size < 1e6 and not [i for i in dist.generate_distribution(size) if i > args.max_time_for_reqs]:
             size *= 2
         requests_times = dist.generate_distribution(size)
+        if size >= 1e6:
+            size = int(1e6)
+            # Eg. if the user runs `--timeout 10 -rps inf`, an arbitrary number of requests at time=0 can be generated
+            logger.warning("Capping number of requests at 1000`000")
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
-def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: int) -> List[Tuple[str, int, int]]:
+def generate_prompts(
+    args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int
+) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
     if args.dataset_name.startswith('sharegpt'):
@@ -123,18 +137,34 @@ def generate_prompts(args: argparse.Namespace, tokenizer: AutoTokenizer, size: i
 
         if args.prefix_len:
             prompt_cls = (
-                Random.with_prefix_len(args.prefix_len, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_len(
+                    args.prefix_len, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                )
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_len(
-                    filename, args.prefix_len, input_prompt_dist, output_token_dist, tokenizer
+                    filename,
+                    args.prefix_len,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
                 )
             )
         else:
             prefix_text = args.prefix_text or ""
             prompt_cls = (
-                Random.with_prefix_str(prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                Random.with_prefix_str(
+                    prefix_text, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                )
                 if args.dataset_name == "random"
-                else Textfile.with_prefix_str(filename, prefix_text, input_prompt_dist, output_token_dist, tokenizer)
+                else Textfile.with_prefix_str(
+                    filename,
+                    prefix_text,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
+                )
             )
 
     if not prompt_cls:
@@ -156,7 +186,7 @@ def send_requests(
     client: Client,
     requests_prompts: List[Tuple[str, int, int]],
     requests_times: List[Union[int, float]],
-    requests_media: List[List[Union[Tuple[int, int], str]]],
+    requests_media: List[List[str]],
 ) -> List[Any]:
     return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
 
@@ -217,7 +247,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--img-ratios-per-req",
         type=parse_tuple,
         default='500x500',
-        help="Image aspect ratios (width x height) to attach per request. Example: '500x500'.",
+        help=(
+            "Single string with image aspect ratios (width x height) separated by commas "
+            "to attach per request. Example: '256x256,500x500'."
+        ),
     )
 
     benchmark_parser.add_argument(
@@ -274,10 +307,25 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--ignore-input-distribution",
+        action="store_true",
+        help="Ignore the input token distribution. This is meant to be used with --prefix-len or --prefix-text.",
+    )
+
+    benchmark_parser.add_argument(
         "--output-token-distribution",
         nargs="*",
         default=["uniform", 1, 255],
         help="Request distribution [Distribution_type (inputs to distribution)]",
+    )
+
+    benchmark_parser.add_argument(
+        "--varying-requests",
+        "--wave",
+        type=int,
+        nargs=3,
+        dest="wave",
+        help="Send requests at a varying request concurrency in a wave-like pattern",
     )
 
     prefix_group = benchmark_parser.add_mutually_exclusive_group()
@@ -367,6 +415,26 @@ def parse_args() -> argparse.Namespace:
             logger.error(msg)
             sys.exit(1)
 
+        if args.wave:
+            if not args.num_of_req:
+                fail("Number of requests must be provided for varying requests")
+            if args.wave[0] >= args.wave[1]:
+                fail("Min wave concurrency must be smaller than max wave concurrency")
+            if args.wave[0] <= 0:
+                fail("Min wave concurrency must be positive")
+            if args.wave[2] <= 0:
+                fail("Wave sustain must be positive")
+            if args.max_concurrent:
+                logger.warning("Both varying requests and max concurrency provided. Ignoring max concurrency")
+                args.max_concurrent = None
+            if args.request_distribution:
+                logger.warning(
+                    "Both varying requests and request rate/distribution provided. Ignoring request rate/distribution"
+                )
+                args.request_distribution = None
+
+            args.request_distribution = ["poisson", "inf"]
+
         if not (args.num_of_req or args.max_time_for_reqs):
             logger.info("Number of requests and max time for requests not provided. Defaulting to 1 request.")
             args.num_of_req = 1
@@ -441,14 +509,14 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_media = generate_request_media(args, size)
+    requests_media = generate_request_media(args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size)
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)
     min_length = min(len(requests_prompts), len(requests_times))
     requests_prompts = requests_prompts[:min_length]
     requests_times = requests_times[:min_length]
-    requests_media = requests_media[:min_length]
+    requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
     set_max_open_files(min_length + 256)
 
@@ -470,6 +538,7 @@ def run_main(args: argparse.Namespace) -> None:
         args.cookies,
         args.verbose,
         args.max_concurrent,
+        args.wave,
         args.logprobs,
     )
     # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
@@ -478,41 +547,53 @@ def run_main(args: argparse.Namespace) -> None:
 
     if args.profile:
         logger.info("Starting the Torch profiler.")
-        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0]))
+        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0][0]))
 
     logger.info(f"Sending {args.num_validation_reqs} requests for validation and warmup.")
     for i in range(args.num_validation_reqs):
-        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0]))
+        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
         if not validate_endpoint.success:
             logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-            sys.exit()
+            sys.exit(1)
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
-    t = time.perf_counter()
-    output_list: List[Any] = send_requests(client, requests_prompts, requests_times, requests_media)
-    benchmark_time = time.perf_counter() - t
 
+    for idx, arr_dims in enumerate(requests_media):
+        if args.num_of_imgs_per_req:
+            logger.info(
+                (
+                    f"Benchmarking with {args.num_of_imgs_per_req} images per request "
+                    f"with ratio {args.img_ratios_per_req[idx]}"
+                )
+            )
+        t = time.perf_counter()
+        output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
+        benchmark_time = time.perf_counter() - t
+        # pylint: disable=line-too-long
+        output = {
+            "backend": args.backend,
+            "time": benchmark_time,
+            "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
+            "inputs": requests_prompts,
+            "tokenizer": args.tokenizer if args.tokenizer else args.model,
+            "stream": not args.disable_stream,
+        }
+
+        if args.output_file:
+            filename = args.output_file
+            if args.num_of_imgs_per_req:
+                w, h = args.img_ratios_per_req[idx]
+                filename = f"ratio_{w}x{h}_{filename}"
+            with open(filename, "w") as f:
+                f.write(json.dumps(output, indent=4))  # type: ignore
+        if args.debug:
+            logger.debug(f"{output_list}")
+
+        calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+    
     if args.profile:
         logger.info("Stopping the Torch profiler.")
-        asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0]))
-
-    # pylint: disable=line-too-long
-    output = {
-        "backend": args.backend,
-        "time": benchmark_time,
-        "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-        "inputs": requests_prompts,
-        "tokenizer": args.tokenizer if args.tokenizer else args.model,
-        "stream": not args.disable_stream,
-    }
-
-    if args.output_file:
-        with open(args.output_file, "w") as f:
-            f.write(json.dumps(output, indent=4))  # type: ignore
-    if args.debug:
-        logger.debug(f"{output_list}")
-
-    calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+        asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0][0]))
 
 
 def main() -> None:
