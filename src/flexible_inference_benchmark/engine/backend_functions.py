@@ -659,7 +659,7 @@ async def async_request_profiler(
         "stop_profile"
     ), "Torch Profiler API URL must end with 'start_profile' or 'stop_profile'."
 
-    content_body = [{"type": "text", "text": request_func_input.prompt}]
+    content_body: List[dict[str, Any]] = [{"type": "text", "text": request_func_input.prompt}]
 
     for media_item in request_func_input.media:
         content_body.append({"type": "image_url", "image_url": {"url": media_item}})
