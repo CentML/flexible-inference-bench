@@ -655,23 +655,14 @@ async def async_request_profiler(
     idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
-    assert api_url.endswith("start_profile") or api_url.endswith("stop_profile"), \
-        "Torch Profiler API URL must end with 'start_profile' or 'stop_profile'."
+    assert api_url.endswith("start_profile") or api_url.endswith(
+        "stop_profile"
+    ), "Torch Profiler API URL must end with 'start_profile' or 'stop_profile'."
 
-    content_body = [
-        {
-            "type": "text",
-            "text": request_func_input.prompt,
-        },
-    ]
+    content_body = [{"type": "text", "text": request_func_input.prompt}]
 
     for media_item in request_func_input.media:
-        content_body.append({
-            "type": "image_url",
-            "image_url": {
-                "url": media_item,
-            },
-        })
+        content_body.append({"type": "image_url", "image_url": {"url": media_item}})
 
     async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
         assert not request_func_input.use_beam_search

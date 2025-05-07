@@ -77,7 +77,7 @@ class Client:
                 return await self.request_func(idx, data, pbar, self.verbose, wait_time)
         else:
             return await self.request_func(idx, data, pbar, self.verbose, wait_time)
-    
+
     async def signal_profiler(
         self,
         idx: int,
@@ -206,8 +206,10 @@ class Client:
             logprobs=self.logprobs,
         )
         return await self.send_request(0, data, 0, None, None)
-    
-    async def start_torch_profiler(self, request: Tuple[str, int, int], media_item: List[str]) -> Union[RequestFuncOutput, Any]:
+
+    async def start_torch_profiler(
+        self, request: Tuple[str, int, int], media_item: List[str]
+    ) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
             prompt=request[0],
             media=media_item,
@@ -224,8 +226,10 @@ class Client:
             logprobs=self.logprobs,
         )
         return await self.signal_profiler(0, data, 0, None, None)
-    
-    async def stop_torch_profiler(self, request: Tuple[str, int, int], media_item: List[str]) -> Union[RequestFuncOutput, Any]:
+
+    async def stop_torch_profiler(
+        self, request: Tuple[str, int, int], media_item: List[str]
+    ) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
             prompt=request[0],
             media=media_item,

@@ -269,7 +269,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         default=1,
         help="Number of requests to send for validation and warmup before the benchmark.",
     )
-    
+
     benchmark_parser.add_argument(
         "--max-concurrent",
         type=int,
@@ -376,8 +376,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--profile",
         action="store_true",
-        help="Use Torch Profiler. The endpoint must be launched with "
-        "VLLM_TORCH_PROFILER_DIR to enable profiler.",
+        help="Use Torch Profiler. The endpoint must be launched with " "VLLM_TORCH_PROFILER_DIR to enable profiler.",
     )
 
     benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
@@ -590,7 +589,7 @@ def run_main(args: argparse.Namespace) -> None:
             logger.debug(f"{output_list}")
 
         calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
-    
+
     if args.profile:
         logger.info("Stopping the Torch profiler.")
         asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0][0]))
