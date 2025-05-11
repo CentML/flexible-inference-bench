@@ -88,9 +88,6 @@ def generate_request_media(
     if not num_imgs_per_req:
         return [[[] for _ in range(size)]]
     
-    if send_image_with_base64:
-        thread_pool = ThreadPoolExecutor(max_workers=32)
-
     results: List[List[List[str]]] = []
     for ratios in img_ratios_per_req:
         media_per_request: List[List[str]] = []
