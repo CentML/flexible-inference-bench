@@ -8,11 +8,11 @@ import sys
 import os
 import time
 from typing import List, Any, Tuple, Union
-import requests
 from concurrent.futures import ThreadPoolExecutor
+import base64
+import requests
 from tqdm import tqdm
 import numpy as np
-import base64
 from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
@@ -81,19 +81,23 @@ def parse_tuple(value: str) -> List[Tuple[int, int]]:
 
 # Specify the number and dimensions of images to be attached to each request
 def generate_request_media(
-    num_of_imgs_per_req: int, img_ratios_per_req: List[Tuple[int, int]], img_base_path: Union[str, None], size: int, send_image_with_base64: bool = False
+    num_of_imgs_per_req: int,
+    img_ratios_per_req: List[Tuple[int, int]],
+    img_base_path: Union[str, None],
+    size: int,
+    send_image_with_base64: bool = False,
 ) -> List[List[List[str]]]:
 
     num_imgs_per_req = num_of_imgs_per_req
     if not num_imgs_per_req:
         return [[[] for _ in range(size)]]
-    
+
     results: List[List[List[str]]] = []
     for ratios in img_ratios_per_req:
         media_per_request: List[List[str]] = []
-        
+
         img_cntr = 0
-        
+
         def _process_sample():
             nonlocal img_cntr
             media_per_request.append([])
@@ -107,21 +111,23 @@ def generate_request_media(
                     if not os.path.exists(img_path):
                         os.makedirs(img_base_path, exist_ok=True)
                         logger.info(f"Downloading image to {img_path} ...")
-                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1],)
-                        img_data = requests.get(img_url).content
+                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                        img_data = requests.get(img_url, timeout=60).content
                         with open(img_path, 'wb') as handler:
                             handler.write(img_data)
                     media_per_request[-1].append('file://' + img_path)
                 else:
                     # Fetch the image online with the ratios
-                    media_per_request[-1].append(return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64))
+                    media_per_request[-1].append(
+                        return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
+                    )
                 img_cntr += 1
-        
+
         with ThreadPoolExecutor(max_workers=32) as executor:
             futures = [executor.submit(_process_sample) for _ in range(size)]
             for future in tqdm(futures, desc=f"Generating images for {ratios[0]}x{ratios[1]}", total=size):
                 future.result()
-        
+
         results.append(media_per_request)
     return results
 
@@ -537,7 +543,9 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
     requests_times = generate_request_times(args)
     size = len(requests_times)
-    requests_media = generate_request_media(args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64)
+    requests_media = generate_request_media(
+        args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
+    )
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
     requests_prompts = generate_prompts(args, tokenizer, size)

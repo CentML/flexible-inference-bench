@@ -1,4 +1,5 @@
 # Taken from vLLM benchmarks
+# pylint: disable=too-many-positional-arguments
 import json
 import os
 import sys
@@ -434,6 +435,7 @@ async def async_request_openai_chat_completions(
                 url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
             ) as response:
                 if response.status == 200:
+                    latency = None
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
                         if not chunk_bytes:
