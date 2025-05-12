@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def return_random_image_URL_by_size(width: int, height: int, convert_to_base64: bool = False) -> str:
 
-    image_url = f"https://picsum.photos/{width}/{height}"
+    image_url = f"https://loremflickr.com/{width}/{height}"
     if convert_to_base64:
         max_retries = 3
         data_url = None
