@@ -98,7 +98,7 @@ def generate_request_media(
 
         img_cntr = 0
 
-        def _process_sample():
+        def _process_sample() -> None:
             nonlocal img_cntr
             media_per_request.append([])
             for _ in range(int(num_imgs_per_req)):
