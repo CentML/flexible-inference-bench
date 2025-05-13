@@ -21,7 +21,9 @@ class bcolors:
 
 class RequestFuncInput(BaseModel):
     prompt: str
-    media: List[str]
+    media: List[str] = Field(default_factory=list)
+    audio_file_path: Optional[str] = None
+    language: Optional[str] = None
     api_url: str
     prompt_len: int
     output_len: int
@@ -633,6 +635,107 @@ def remove_prefix(text: str, prefix: str) -> str:
     return text
 
 
+async def async_request_openai_audio_transcriptions(
+    idx: int, request_func_input: RequestFuncInput, pbar: Optional[tqdm], verbose: bool, wait_time: float
+) -> RequestFuncOutput:
+    """
+    Handle API calls to an OpenAI-compatible audio transcription endpoint.
+    
+    This function manages the interaction with audio transcription APIs that follow
+    the OpenAI API format for audio endpoints (/v1/audio/transcriptions).
+    """
+    api_url = request_func_input.api_url 
+
+    output = RequestFuncOutput()
+    output.prompt_len = request_func_input.prompt_len 
+
+    if not request_func_input.audio_file_path or not os.path.exists(request_func_input.audio_file_path):
+        output.success = False
+        output.error = f"Audio file not provided or not found: {request_func_input.audio_file_path}"
+        if pbar:
+            pbar.update(1)
+        return output
+
+    async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
+        form = aiohttp.FormData()
+        form.add_field('model', request_func_input.model)
+        if request_func_input.language:
+            form.add_field('language', request_func_input.language)
+        
+        try:
+            audio_file_handle = open(request_func_input.audio_file_path, "rb")
+            form.add_field('file', 
+                           audio_file_handle,
+                           filename=os.path.basename(request_func_input.audio_file_path),
+                           content_type='application/octet-stream')
+        except IOError as e:
+            output.success = False
+            output.error = f"Could not open audio file {request_func_input.audio_file_path}: {e}"
+            if pbar:
+                pbar.update(1)
+            if 'audio_file_handle' in locals() and audio_file_handle:
+                audio_file_handle.close()
+            return output
+
+        generated_text = ""
+        ttft = 0.0
+        st = time.perf_counter()
+        most_recent_timestamp = st
+        latency = 0.0
+        
+        try:
+            headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+            async with session.post(url=api_url, data=form, headers=headers, verify_ssl=request_func_input.ssl) as response:
+                if response.status == 200:
+                    if request_func_input.stream:
+                        async for chunk_bytes in response.content:
+                            chunk_bytes = chunk_bytes.strip()
+                            if not chunk_bytes:
+                                continue
+                            
+                            chunk_text = chunk_bytes.decode("utf-8")
+                            timestamp = time.perf_counter()
+                            if ttft == 0.0 and chunk_text:
+                                ttft = timestamp - st
+                                output.ttft = ttft
+                            elif chunk_text:
+                                output.itl.append(timestamp - most_recent_timestamp)
+                            
+                            generated_text += chunk_text
+                            most_recent_timestamp = timestamp
+                        latency = time.perf_counter() - st
+                    else:
+                        resp_json = await response.json()
+                        generated_text = resp_json.get("text", "")
+                        latency = time.perf_counter() - st
+                        output.ttft = latency # For non-streaming, TTFT is the full latency.
+                    
+                    output.generated_text = generated_text
+                    output.success = True
+                    output.latency = latency
+                    output.output_len = len(generated_text.split())
+
+                else:
+                    output.success = False
+                    error_detail = await response.text()
+                    output.error = f"API error: {response.status} {response.reason}. Detail: {error_detail}"
+
+        except aiohttp.ClientConnectorError:
+            output.success = False
+            output.error = "Connection error, please verify the server is running and endpoint is correct."
+        except Exception:  # pylint: disable=broad-except
+            output.success = False
+            exc_info = sys.exc_info()
+            output.error = "".join(traceback.format_exception(*exc_info))
+        finally:
+            if 'audio_file_handle' in locals() and audio_file_handle:
+                audio_file_handle.close()
+
+    if pbar:
+        pbar.update(1)
+    return output
+
+
 def print_verbose(
     idx: int, request_func_input: RequestFuncInput, send_time: float, rcv_time: float, latency: float, sending: bool
 ) -> None:
@@ -663,5 +766,6 @@ ASYNC_REQUEST_FUNCS = {
     "deepspeed-mii": async_request_deepspeed_mii,
     "openai": async_request_openai_completions,
     "openai-chat": async_request_openai_chat_completions,
+    "openai-audio": async_request_openai_audio_transcriptions, # New backend
     "tensorrt-llm": async_request_trt_llm,
 }

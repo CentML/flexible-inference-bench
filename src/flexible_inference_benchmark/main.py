@@ -7,7 +7,7 @@ import itertools
 import sys
 import os
 import time
-from typing import List, Any, Tuple, Union
+from typing import List, Any, Dict, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 import base64
 import requests
@@ -23,9 +23,9 @@ from flexible_inference_benchmark.utils.utils import (
     set_max_open_files,
     download_sharegpt_dataset,
 )
-from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
+from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random, ASRDataset, Data
 from flexible_inference_benchmark.engine.client import Client
-from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
+from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS, RequestFuncInput, RequestFuncOutput
 from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
@@ -158,6 +158,35 @@ def generate_request_times(args: argparse.Namespace) -> List[Union[int, float]]:
         return [i for i in requests_times if i <= args.max_time_for_reqs]
 
 
+def create_asr_dataset_and_generate_tasks(
+    args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int
+) -> Tuple[ASRDataset, List[Tuple[str, int, int, str]]]:
+    """
+    Create an ASRDataset instance and generate audio transcription tasks.
+    
+    Args:
+        args: Command-line arguments
+        tokenizer: Tokenizer for encoding/decoding text
+        size: Number of audio tasks to generate
+        
+    Returns:
+        Tuple of (ASRDataset instance, List of task tuples)
+        where each task tuple contains (preamble_text, prompt_len, output_len, audio_file_path)
+    """
+    asr_dataset = ASRDataset(
+        hf_dataset_name=args.audio_dataset_name,
+        tokenizer=tokenizer,
+        hf_dataset_config=args.audio_dataset_config,
+        hf_dataset_split=args.audio_dataset_split,
+        language=args.audio_language,
+        preamble_template=args.audio_preamble,
+        audio_duration_limit_sec=args.audio_duration_limit,
+        max_samples=args.audio_max_samples
+    )
+    data = asr_dataset.generate_data(size)
+    return asr_dataset, data
+
+
 def generate_prompts(
     args: argparse.Namespace, tokenizer: PreTrainedTokenizerBase, size: int
 ) -> List[Tuple[str, int, int]]:
@@ -225,11 +254,13 @@ def generate_prompts(
 
 def send_requests(
     client: Client,
-    requests_prompts: List[Tuple[str, int, int]],
+    prepared_requests_data: List[Dict[str, Any]],
     requests_times: List[Union[int, float]],
-    requests_media: List[List[str]],
 ) -> List[Any]:
-    return asyncio.run(client.benchmark(requests_prompts, requests_times, requests_media))
+    """
+    Send prepared requests to the server through the client.
+    """
+    return asyncio.run(client.benchmark(prepared_requests_data, requests_times))
 
 
 def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # type: ignore [type-arg]
@@ -389,6 +420,16 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         choices=["sharegpt", "sharegpt_code", "other", "random"],
         help="Name of the dataset to benchmark on.",
     )
+    
+    # Audio Benchmarking Options
+    audio_group = benchmark_parser.add_argument_group('Audio Benchmarking Options (used if backend is openai-audio)')
+    audio_group.add_argument("--audio-dataset-name", type=str, default="librispeech_asr", help="Name of the Hugging Face ASR dataset (e.g., 'librispeech_asr', 'common_voice').")
+    audio_group.add_argument("--audio-dataset-config", type=str, default=None, help="Configuration for the HF dataset (e.g., 'clean' for librispeech, 'en' for common_voice).")
+    audio_group.add_argument("--audio-dataset-split", type=str, default="test.clean", help="Dataset split to use (e.g., 'test.clean', 'validation', 'train'). Check HF dataset viewer for available splits.")
+    audio_group.add_argument("--audio-language", type=str, default="en", help="Target language for ASR (ISO 639-1 code, e.g., 'en', 'es', 'fr'). Used in preamble.")
+    audio_group.add_argument("--audio-preamble", type=str, default=None, help="Custom preamble template for ASR. Use '{lang}' for language placeholder. Defaults to Whisper-style preamble.")
+    audio_group.add_argument("--audio-duration-limit", type=float, default=29.5, help="Maximum audio duration in seconds to process. Samples longer than this will be skipped. Default 29.5s (Whisper limit is 30s).")
+    audio_group.add_argument("--audio-max-samples", type=int, default=None, help="Maximum number of audio samples to load from the dataset for preparation. Useful for large datasets.")
 
     benchmark_parser.add_argument("--dataset-path", type=str, default=None, help="Path to the dataset.")
 
@@ -527,8 +568,17 @@ def parse_args() -> argparse.Namespace:
                 "Do not specify workload type with ShareGPT dataset."
             )
 
-        if args.dataset_path and not args.dataset_name:
+        if args.dataset_path and not args.dataset_name and args.backend != "openai-audio":
             args.dataset_name = "other"
+        
+        if args.backend == "openai-audio":
+            if not args.audio_dataset_name:
+                fail("For 'openai-audio' backend, --audio-dataset-name must be provided.")
+            if args.workload_type:
+                logger.warning("--workload-type is ignored for 'openai-audio' backend.")
+                args.workload_type = None
+            if args.dataset_name != "random" or args.dataset_path:
+                logger.warning("--dataset-name and --dataset-path are typically for text datasets and might be ignored for 'openai-audio' if --audio-dataset-name is used.")
 
     return args
 
@@ -542,83 +592,134 @@ def run_main(args: argparse.Namespace) -> None:
         np.random.seed(args.seed)
         random.seed(args.seed)
     requests_times = generate_request_times(args)
-    size = len(requests_times)
-    requests_media = generate_request_media(
-        args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
-    )
+    num_actual_requests = len(requests_times)
+
     tokenizer_id = args.tokenizer if args.tokenizer else args.model
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
-    requests_prompts = generate_prompts(args, tokenizer, size)
-    min_length = min(len(requests_prompts), len(requests_times))
-    requests_prompts = requests_prompts[:min_length]
-    requests_times = requests_times[:min_length]
-    requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
-    set_max_open_files(min_length + 256)
+    prepared_requests_data: List[Dict[str, Any]] = []
+    common_req_params = {
+        "api_url": f"{args.base_url.strip('/')}/{args.endpoint.strip('/')}",
+        "model": args.model,
+        "best_of": args.best_of,
+        "use_beam_search": args.use_beam_search,
+        "ssl": args.https_ssl,
+        "ignore_eos": not args.disable_ignore_eos,
+        "stream": not args.disable_stream,
+        "cookies": args.cookies,
+        "logprobs": args.logprobs,
+    }
 
-    base_url = args.base_url.strip("/")
-    endpoint = args.endpoint.strip("/")
-    args.api_url = f"{base_url}/{endpoint}"
+    asr_dataset_instance = None
+    
+    try:
+        if args.backend == "openai-audio":
+            asr_dataset_instance, audio_tasks = create_asr_dataset_and_generate_tasks(args, tokenizer, num_actual_requests)
+            num_actual_requests = min(num_actual_requests, len(audio_tasks))
+            requests_times = requests_times[:num_actual_requests]
 
-    client = Client(
-        args.backend,
-        args.api_url,
-        args.model,
-        args.best_of,
-        args.use_beam_search,
-        True if args.verbose else args.disable_tqdm,
-        args.https_ssl,
-        not args.disable_ignore_eos,
-        not args.disable_stream,
-        args.cookies,
-        args.verbose,
-        args.max_concurrent,
-        args.wave,
-        args.logprobs,
-    )
-    # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
-    client_verbose_value = client.verbose
-    client.verbose = False
-    logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
-    if not validate_endpoint.success:
-        logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-        sys.exit(1)
-    client.verbose = client_verbose_value
-    logger.info("Beginning benchmark.")
-
-    for idx, arr_dims in enumerate(requests_media):
-        if args.num_of_imgs_per_req:
-            logger.info(
-                (
-                    f"Benchmarking with {args.num_of_imgs_per_req} images per request "
-                    f"with ratio {args.img_ratios_per_req[idx]}"
-                )
+            for i in range(num_actual_requests):
+                prompt_text, p_len, o_len, audio_fpath = audio_tasks[i]
+                req_data = {
+                    **common_req_params,
+                    "prompt": prompt_text,
+                    "prompt_len": p_len,
+                    "output_len": o_len,
+                    "audio_file_path": audio_fpath,
+                    "language": args.audio_language,
+                }
+                prepared_requests_data.append(req_data)
+        else:
+            requests_media_for_images = generate_request_media(
+                args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, num_actual_requests, args.send_image_with_base64
             )
+            
+            text_prompts = generate_prompts(args, tokenizer, num_actual_requests)
+            num_actual_requests = min(num_actual_requests, len(text_prompts))
+            requests_times = requests_times[:num_actual_requests]
+
+            for i in range(num_actual_requests):
+                prompt_text, p_len, o_len = text_prompts[i]
+                req_data = {
+                    **common_req_params,
+                    "prompt": prompt_text,
+                    "prompt_len": p_len,
+                    "output_len": o_len,
+                    "media": requests_media_for_images[0][i] if requests_media_for_images and len(requests_media_for_images[0]) > i else [],
+                }
+                prepared_requests_data.append(req_data)
+
+        if not prepared_requests_data:
+            logger.error("No requests were prepared. Exiting.")
+            if asr_dataset_instance:
+                asr_dataset_instance.cleanup_temp_dir()
+            sys.exit(1)
+
+        num_actual_requests = len(prepared_requests_data)
+        requests_times = requests_times[:num_actual_requests]
+
+        set_max_open_files(num_actual_requests + 256)
+
+        client = Client(
+            args.backend,
+            "",
+            args.model,
+            args.best_of,
+            args.use_beam_search,
+            True if args.verbose else args.disable_tqdm,
+            args.https_ssl,
+            not args.disable_ignore_eos,
+            not args.disable_stream,
+            args.cookies,
+            args.verbose,
+            args.max_concurrent,
+            args.wave,
+            args.logprobs,
+        )
+        
+        first_prepared_req_for_validation = RequestFuncInput(**prepared_requests_data[0])
+        
+        client_verbose_value = client.verbose
+        client.verbose = False
+        logger.info("Sending a single request for validation.")
+        validate_endpoint = asyncio.run(client.validate_request_func_input(first_prepared_req_for_validation))
+        if not validate_endpoint.success:
+            logger.error(f"Validation request failed: {validate_endpoint.error}.\nExiting benchmark ....")
+            return
+        client.verbose = client_verbose_value
+        logger.info("Beginning benchmark.")
+
         t = time.perf_counter()
-        output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
+        output_list: List[Any] = send_requests(client, prepared_requests_data, requests_times)
         benchmark_time = time.perf_counter() - t
-        # pylint: disable=line-too-long
-        output = {
+        
+        output_json = {
             "backend": args.backend,
             "time": benchmark_time,
-            "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-            "inputs": requests_prompts,
-            "tokenizer": args.tokenizer if args.tokenizer else args.model,
+            "outputs": [out.model_dump() for out in output_list if out is not None],
+            "inputs_config": prepared_requests_data,
+            "tokenizer": tokenizer_id,
             "stream": not args.disable_stream,
         }
 
         if args.output_file:
-            filename = args.output_file
-            if args.num_of_imgs_per_req:
-                w, h = args.img_ratios_per_req[idx]
-                filename = f"ratio_{w}x{h}_{filename}"
-            with open(filename, "w") as f:
-                f.write(json.dumps(output, indent=4))  # type: ignore
+            with open(args.output_file, "w") as f:
+                json.dump(output_json, f, indent=4)
         if args.debug:
-            logger.debug(f"{output_list}")
+            logger.debug(f"Raw outputs: {[out.model_dump() for out in output_list if out is not None]}")
 
-        calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+        simplified_inputs = None
+        if args.backend == "openai-audio":
+            simplified_inputs = [(req["prompt"], req["prompt_len"], req["output_len"]) for req in prepared_requests_data]
+        else:
+            simplified_inputs = [(req["prompt"], req["prompt_len"], req["output_len"]) for req in prepared_requests_data]
+            
+        calculate_metrics(simplified_inputs, output_json["outputs"], output_json["time"], tokenizer, output_json["stream"])
+        
+    finally:
+        if asr_dataset_instance:
+            logger.info("Cleaning up ASRDataset temporary directory...")
+            asr_dataset_instance.cleanup_temp_dir()
 
 
 def main() -> None:
