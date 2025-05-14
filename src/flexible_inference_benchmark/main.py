@@ -544,19 +544,19 @@ def run_main(args: argparse.Namespace) -> None:
     client_verbose_value = client.verbose
     client.verbose = False
 
-    if args.profile:
-        logger.info("Starting the Torch profiler.")
-        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0][0]))
-
     logger.info(f"Sending {args.num_validation_reqs} requests for validation and warmup.")
     for _ in range(args.num_validation_reqs):
         validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
         if not validate_endpoint.success:
             logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
             sys.exit(1)
+
+    if args.profile:
+        logger.info("Starting the Torch profiler.")
+        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0][0]))
+
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
-
     for idx, arr_dims in enumerate(requests_media):
         if args.num_of_imgs_per_req:
             logger.info(
