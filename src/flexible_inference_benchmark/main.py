@@ -100,7 +100,7 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media_per_request.append([])
+            media = []
             for _ in range(int(num_imgs_per_req)):
                 # If img_base_path is provided, store the image locally
                 # Otherwise, feed the image online
@@ -115,13 +115,14 @@ def generate_request_media(
                         img_data = requests.get(img_url, timeout=60).content
                         with open(img_path, 'wb') as handler:
                             handler.write(img_data)
-                    media_per_request[-1].append('file://' + img_path)
+                    media.append('file://' + img_path)
                 else:
                     # Fetch the image online with the ratios
-                    media_per_request[-1].append(
+                    media.append(
                         return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
                     )
                 img_cntr += 1
+            media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
             futures = [executor.submit(_process_sample) for _ in range(size)]
