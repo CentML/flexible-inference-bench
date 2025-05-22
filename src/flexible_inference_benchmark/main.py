@@ -10,6 +10,7 @@ import time
 from typing import List, Any, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 import base64
+import uuid
 import requests
 from tqdm import tqdm
 import numpy as np
@@ -33,8 +34,6 @@ from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
 from flexible_inference_benchmark.utils.telemetry import setup_telemetry
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
-
-import uuid
 
 logger = logging.getLogger(__name__)
 
