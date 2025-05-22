@@ -127,29 +127,16 @@ class Client:
         return request_result
 
     async def benchmark(
-        self, data: List[Tuple[str, int, int]], request_times: List[Union[float, int]], requests_media: List[List[str]]
+        self,
+        prepared_requests_data: List[Dict[str, Any]],
+        request_times: List[Union[float, int]]
     ) -> list[Union[RequestFuncOutput, Any, None]]:
-        assert len(data) == len(request_times), "Data and request times must have the same length"
-        assert len(data) == len(requests_media), "Data and request media must have the same length"
-        pbar = None if self.disable_tqdm else tqdm(total=len(data))
+        assert len(prepared_requests_data) == len(request_times), "Prepared requests data and request times must have the same length"
+        pbar = None if self.disable_tqdm else tqdm(total=len(prepared_requests_data), desc="Sending Requests")
 
         request_func_inputs = [
-            RequestFuncInput(
-                prompt=data_sample[0],
-                media=media_sample,
-                api_url=self.api_url,
-                prompt_len=data_sample[1],
-                output_len=data_sample[2],
-                model=self.model_id,
-                best_of=self.best_of,
-                use_beam_search=self.use_beam_search,
-                ssl=self.ssl,
-                ignore_eos=self.ignore_eos,
-                stream=self.stream,
-                cookies=self.cookies,
-                logprobs=self.logprobs,
-            )
-            for (data_sample, media_sample) in zip(data, requests_media)
+            RequestFuncInput(**req_data)
+            for req_data in prepared_requests_data
         ]
 
         if self.wave:
@@ -171,22 +158,16 @@ class Client:
                 ]
             )
 
-    async def validate_url_endpoint(
-        self, request: Tuple[str, int, int], media_item: List[str]
+    async def validate_request_func_input(
+        self, request_input: RequestFuncInput
     ) -> Union[RequestFuncOutput, Any]:
-        data = RequestFuncInput(
-            prompt=request[0],
-            media=media_item,
-            api_url=self.api_url,
-            prompt_len=request[1],
-            output_len=request[2],
-            model=self.model_id,
-            best_of=self.best_of,
-            use_beam_search=self.use_beam_search,
-            ssl=self.ssl,
-            ignore_eos=self.ignore_eos,
-            stream=self.stream,
-            cookies=self.cookies,
-            logprobs=self.logprobs,
-        )
-        return await self.send_request(0, data, 0, None, None)
+        """
+        Validate a request by sending it to the endpoint.
+        
+        Args:
+            request_input: A fully prepared RequestFuncInput instance.
+            
+        Returns:
+            The response from the server.
+        """
+        return await self.send_request(0, request_input, 0, None, None)
