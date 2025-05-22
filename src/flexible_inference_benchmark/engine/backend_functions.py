@@ -17,6 +17,7 @@ AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
 # Get the tracer
 tracer = trace.get_tracer(__name__)
 
+
 class bcolors:
     OKBLUE = '\033[94m'
     OKGREEN = '\033[92m'
@@ -417,8 +418,8 @@ async def async_request_openai_chat_completions(
             image_count=len(request_func_input.media) if request_func_input.media else 0,
             image_sizes=[len(img) for img in request_func_input.media] if request_func_input.media else [],
             response_tokens=0,  # Will be updated after response
-            run_id=request_func_input.run_id or "unknown"  # Provide default value for None
-        )
+            run_id=request_func_input.run_id or "unknown",  # Provide default value for None
+        ),
     ) as span:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
@@ -434,7 +435,10 @@ async def async_request_openai_chat_completions(
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = True
                 payload["top_logprobs"] = int(request_func_input.logprobs)
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            }
 
             output = RequestFuncOutput()
             output.prompt_len = request_func_input.prompt_len
@@ -467,7 +471,9 @@ async def async_request_openai_chat_completions(
 
                                         delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
                                         content = delta.get("content", None) if delta is not None else None
-                                        reasoning_content = delta.get("reasoning_content", None) if delta is not None else None
+                                        reasoning_content = (
+                                            delta.get("reasoning_content", None) if delta is not None else None
+                                        )
                                         if (content is not None or reasoning_content is not None) and not (
                                             ttft == 0.0 and (content == '' or reasoning_content == '')
                                         ):
@@ -478,7 +484,9 @@ async def async_request_openai_chat_completions(
 
                                             else:
                                                 output.itl.append(timestamp - most_recent_timestamp)
-                                                process_span.set_attribute("fib.inter_token_latency", timestamp - most_recent_timestamp)
+                                                process_span.set_attribute(
+                                                    "fib.inter_token_latency", timestamp - most_recent_timestamp
+                                                )
                                             if content:
                                                 generated_text += content
                                             elif reasoning_content:

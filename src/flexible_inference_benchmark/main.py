@@ -559,12 +559,13 @@ def run_main(args: argparse.Namespace) -> None:
         kind=SpanKind.INTERNAL,
         attributes={
             "fib.run.id": run_id,
-            "fib.command": json.dumps({
-                "subcommand": args.subcommand,
-                "args": {k: v for k, v in vars(args).items() 
-                        if k not in ['subcommand'] and v is not None}
-            })
-        }
+            "fib.command": json.dumps(
+                {
+                    "subcommand": args.subcommand,
+                    "args": {k: v for k, v in vars(args).items() if k not in ['subcommand'] and v is not None},
+                }
+            ),
+        },
     ) as span:
         requests_times = generate_request_times(args)
         size = len(requests_times)
@@ -635,7 +636,9 @@ def run_main(args: argparse.Namespace) -> None:
             }
 
             # Calculate performance metrics and add them as span attributes
-            metrics = calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+            metrics = calculate_metrics(
+                output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"]
+            )
             # Add metrics as a single JSON blob attribute
             span.set_attribute("fib.metrics", json.dumps(metrics))
 
