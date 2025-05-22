@@ -30,6 +30,11 @@ from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
 from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
+from flexible_inference_benchmark.utils.telemetry import setup_telemetry
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
+
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -542,84 +547,107 @@ def run_main(args: argparse.Namespace) -> None:
     if args.seed is not None:
         np.random.seed(args.seed)
         random.seed(args.seed)
-    requests_times = generate_request_times(args)
-    size = len(requests_times)
-    requests_media = generate_request_media(
-        args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
-    )
-    tokenizer_id = args.tokenizer if args.tokenizer else args.model
-    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
-    requests_prompts = generate_prompts(args, tokenizer, size)
-    min_length = min(len(requests_prompts), len(requests_times))
-    requests_prompts = requests_prompts[:min_length]
-    requests_times = requests_times[:min_length]
-    requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
-    set_max_open_files(min_length + 256)
+    # Set up telemetry
+    setup_telemetry()
+    run_id = str(uuid.uuid4())
 
-    base_url = args.base_url.strip("/")
-    endpoint = args.endpoint.strip("/")
-    args.api_url = f"{base_url}/{endpoint}"
-
-    client = Client(
-        args.backend,
-        args.api_url,
-        args.model,
-        args.best_of,
-        args.use_beam_search,
-        True if args.verbose else args.disable_tqdm,
-        args.https_ssl,
-        not args.disable_ignore_eos,
-        not args.disable_stream,
-        args.cookies,
-        args.verbose,
-        args.max_concurrent,
-        args.wave,
-        args.logprobs,
-    )
-    # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
-    client_verbose_value = client.verbose
-    client.verbose = False
-    logger.info("Sending a single request for validation.")
-    validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
-    if not validate_endpoint.success:
-        logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-        sys.exit(1)
-    client.verbose = client_verbose_value
-    logger.info("Beginning benchmark.")
-
-    for idx, arr_dims in enumerate(requests_media):
-        if args.num_of_imgs_per_req:
-            logger.info(
-                (
-                    f"Benchmarking with {args.num_of_imgs_per_req} images per request "
-                    f"with ratio {args.img_ratios_per_req[idx]}"
-                )
-            )
-        t = time.perf_counter()
-        output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
-        benchmark_time = time.perf_counter() - t
-        # pylint: disable=line-too-long
-        output = {
-            "backend": args.backend,
-            "time": benchmark_time,
-            "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-            "inputs": requests_prompts,
-            "tokenizer": args.tokenizer if args.tokenizer else args.model,
-            "stream": not args.disable_stream,
+    # Create a top-level span for the entire experiment that is not a parent span
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_span(
+        "experiment",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            "fib.run.id": run_id,
+            "fib.command": json.dumps({
+                "subcommand": args.subcommand,
+                "args": {k: v for k, v in vars(args).items() 
+                        if k not in ['subcommand'] and v is not None}
+            })
         }
+    ) as span:
+        requests_times = generate_request_times(args)
+        size = len(requests_times)
+        requests_media = generate_request_media(
+            args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
+        )
+        tokenizer_id = args.tokenizer if args.tokenizer else args.model
+        tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
+        requests_prompts = generate_prompts(args, tokenizer, size)
+        min_length = min(len(requests_prompts), len(requests_times))
+        requests_prompts = requests_prompts[:min_length]
+        requests_times = requests_times[:min_length]
+        requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
-        if args.output_file:
-            filename = args.output_file
+        set_max_open_files(min_length + 256)
+
+        base_url = args.base_url.strip("/")
+        endpoint = args.endpoint.strip("/")
+        args.api_url = f"{base_url}/{endpoint}"
+
+        client = Client(
+            args.backend,
+            args.api_url,
+            args.model,
+            args.best_of,
+            args.use_beam_search,
+            True if args.verbose else args.disable_tqdm,
+            args.https_ssl,
+            not args.disable_ignore_eos,
+            not args.disable_stream,
+            args.cookies,
+            args.verbose,
+            args.max_concurrent,
+            args.wave,
+            args.logprobs,
+            run_id=run_id,
+        )
+        # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
+        client_verbose_value = client.verbose
+        client.verbose = False
+        logger.info("Sending a single request for validation.")
+        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
+        if not validate_endpoint.success:
+            logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
+            sys.exit(1)
+        client.verbose = client_verbose_value
+        logger.info("Beginning benchmark.")
+
+        for idx, arr_dims in enumerate(requests_media):
             if args.num_of_imgs_per_req:
-                w, h = args.img_ratios_per_req[idx]
-                filename = f"ratio_{w}x{h}_{filename}"
-            with open(filename, "w") as f:
-                f.write(json.dumps(output, indent=4))  # type: ignore
-        if args.debug:
-            logger.debug(f"{output_list}")
+                logger.info(
+                    (
+                        f"Benchmarking with {args.num_of_imgs_per_req} images per request "
+                        f"with ratio {args.img_ratios_per_req[idx]}"
+                    )
+                )
+            t = time.perf_counter()
+            output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
+            benchmark_time = time.perf_counter() - t
+            # pylint: disable=line-too-long
+            output = {
+                "backend": args.backend,
+                "time": benchmark_time,
+                "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
+                "inputs": requests_prompts,
+                "tokenizer": args.tokenizer if args.tokenizer else args.model,
+                "stream": not args.disable_stream,
+            }
 
-        calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+            # Calculate performance metrics and add them as span attributes
+            metrics = calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+            # Add metrics as a single JSON blob attribute
+            span.set_attribute("fib.metrics", json.dumps(metrics))
+
+            if args.output_file:
+                filename = args.output_file
+                if args.num_of_imgs_per_req:
+                    w, h = args.img_ratios_per_req[idx]
+                    filename = f"ratio_{w}x{h}_{filename}"
+                with open(filename, "w") as f:
+                    f.write(json.dumps(output, indent=4))  # type: ignore
+            if args.debug:
+                logger.debug(f"{output_list}")
 
 
 def main() -> None:

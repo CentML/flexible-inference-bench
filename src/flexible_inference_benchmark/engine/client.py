@@ -1,6 +1,7 @@
 # pylint: disable=too-many-positional-arguments
 import asyncio
 import logging
+import uuid
 from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union, Dict
 import random
 from tqdm import tqdm
@@ -38,6 +39,7 @@ class Client:
         max_concurrent: Optional[int],
         wave: Optional[List[int]],
         logprobs: Optional[int],
+        run_id: Optional[str] = None,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -55,6 +57,7 @@ class Client:
         if wave:
             self.wave_min, self.wave_max, self.wave_sustain = wave
         self.logprobs = logprobs
+        self.run_id = run_id or str(uuid.uuid4())
 
     @property
     def request_func(
@@ -148,6 +151,7 @@ class Client:
                 stream=self.stream,
                 cookies=self.cookies,
                 logprobs=self.logprobs,
+                run_id=self.run_id,
             )
             for (data_sample, media_sample) in zip(data, requests_media)
         ]
@@ -189,4 +193,4 @@ class Client:
             cookies=self.cookies,
             logprobs=self.logprobs,
         )
-        return await self.send_request(0, data, 0, None, None)
+        return await self.send_request(-1, data, 0, None, None)
