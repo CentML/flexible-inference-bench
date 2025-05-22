@@ -45,7 +45,7 @@ def setup_telemetry() -> None:
 
 def create_span_attributes(
     prompt_tokens: int, image_count: int, image_sizes: list[int], response_tokens: int, run_id: str
-) -> dict:
+) -> dict[str, int | list[int] | str]:
     """
     Create a dictionary of span attributes for a request.
     All attributes are prefixed with 'fib.' for easy identification.
