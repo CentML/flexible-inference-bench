@@ -9,6 +9,24 @@ cd flexible-inference-bench
 pip install .
 ```
 
+## OpenTelemetry Integration
+The framework supports OpenTelemetry integration for distributed tracing. To enable it:
+
+1. Set the following environment variables:
+   ```bash
+   export OTEL_ENABLED=true
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-collector:4317  # Optional, defaults to localhost:4317
+   ```
+
+2. Each request will be traced with the following attributes (all prefixed with 'fib.' for easy identification):
+   - `fib.prompt.tokens`: Number of tokens in the input prompt
+   - `fib.image.count`: Number of images in the request
+   - `fib.image.sizes`: List of image sizes in bytes
+   - `fib.response.tokens`: Number of tokens in the response
+   - `fib.run.id`: Unique identifier for grouping requests from the same benchmark run
+
+3. The traces can be viewed in any OpenTelemetry-compatible backend (e.g., Jaeger, Zipkin, etc.)
+
 ## Usage
 After installing with the above instructions, the benchmarker can be invoked with `fib benchmark [options]`.
 
