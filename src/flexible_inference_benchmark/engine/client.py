@@ -39,7 +39,7 @@ class Client:
         max_concurrent: Optional[int],
         wave: Optional[List[int]],
         logprobs: Optional[int],
-        temperature: float = 1.0,
+        temperature: float = 0.0,
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
         run_id: Optional[str] = None,
