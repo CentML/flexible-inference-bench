@@ -56,7 +56,7 @@ class RequestFuncOutput(BaseModel):
 
 
 def apply_sampling_params(
-    payload: Dict[str, Any], request_func_input: RequestFuncInput, always_top_p=True, temp_min=0.0, top_p_max=1.0
+    payload: Any, request_func_input: RequestFuncInput, always_top_p=True, temp_min=0.0, top_p_max=1.0
 ) -> None:
     """
     Apply sampling parameters to the payload.
