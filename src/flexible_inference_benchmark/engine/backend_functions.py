@@ -56,7 +56,11 @@ class RequestFuncOutput(BaseModel):
 
 
 def apply_sampling_params(
-    payload: Any, request_func_input: RequestFuncInput, always_top_p=True, temp_min=0.0, top_p_max=1.0
+    payload: Any,
+    request_func_input: RequestFuncInput,
+    always_top_p: bool = True,
+    temp_min: float = 0.0,
+    top_p_max: float = 1.0,
 ) -> None:
     """
     Apply sampling parameters to the payload.
