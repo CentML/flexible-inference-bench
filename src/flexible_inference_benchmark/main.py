@@ -168,18 +168,17 @@ def generate_prompts(
 ) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
+
+    output_token_dist = select_distribution(args.output_token_distribution)
     if args.dataset_name.startswith('sharegpt'):
         logger.info(
             "User selected sharegpt dataset. "
-            "Ignoring prompt and output length distribution and following the shapes from the dataset."
+            "Ignoring prompt length distribution and following the prompts from the dataset."
         )
-        prompt_cls = ShareGPT(filename, tokenizer)
+        prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
-        logger.info(
-            f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."
-        )
+        logger.info(f"User selected {args.dataset_name} dataset. Generating prompt from distributions.")
         input_prompt_dist = select_distribution(args.input_token_distribution)
-        output_token_dist = select_distribution(args.output_token_distribution)
 
         if args.prefix_len:
             prompt_cls = (

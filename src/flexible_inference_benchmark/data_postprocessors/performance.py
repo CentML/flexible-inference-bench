@@ -63,6 +63,9 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     print("{:<40} {:<10.2f}".format("Output token throughput (tok/s):", output_throughput))
 
     if stream:
+        if mean_tpot_ms != 0:
+            tokens_per_second = 1000 / mean_tpot_ms
+            print("{:<40} {:<10.1f}".format("Output tokens/sec/user (excl. 1st tok):", tokens_per_second))
         print("{s:{c}^{n}}".format(s='Time to First Token', n=50, c='-'))
         print("{:<40} {:<10.2f}".format("Mean TTFT (ms):", mean_ttft_ms))
         print("{:<40} {:<10.2f}".format("Median TTFT (ms):", median_ttft_ms))
