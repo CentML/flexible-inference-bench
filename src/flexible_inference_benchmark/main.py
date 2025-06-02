@@ -421,6 +421,12 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
 
+    benchmark_parser.add_argument("--temperature", "--temp", type=float, default=0.0, help="Temperature for sampling.")
+
+    benchmark_parser.add_argument("--top-p", type=float, default=None, help="Top-p for sampling.")
+
+    benchmark_parser.add_argument("--top-k", type=int, default=None, help="Top-k for sampling.")
+
     benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
 
     return benchmark_parser
@@ -600,6 +606,9 @@ def run_main(args: argparse.Namespace) -> None:
             args.max_concurrent,
             args.wave,
             args.logprobs,
+            args.temperature,
+            args.top_p,
+            args.top_k,
             run_id=run_id,
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
