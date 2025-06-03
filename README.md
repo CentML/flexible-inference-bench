@@ -66,6 +66,9 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--cookies` | Include cookies in the request. |
 | `--config-file` | Path to configuration file. |
 | `--logprobs` | Number of logprobs to return with the request. FIB will not process them, but still useful for measuring the cost of computing / communicating logprobs. Defaults to None. |
+| `--temperature` (`--temp`) | Temperature to use for sampling. Defaults to 0.0. |
+| `--top-p` | Top-P to use for sampling. Defaults to None, or 1.0 for backends which require it to be specified. |
+| `--top-k` | Top-K to use for sampling. Defaults to None. |
 
 In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
 

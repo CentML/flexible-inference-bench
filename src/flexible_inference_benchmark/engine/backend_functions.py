@@ -38,6 +38,9 @@ class RequestFuncInput(BaseModel):
     stream: bool = True
     cookies: Dict[str, str]
     logprobs: Optional[int] = None
+    temperature: float = 0.0
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
     run_id: Optional[str] = None
 
 
@@ -50,6 +53,27 @@ class RequestFuncOutput(BaseModel):
     prompt_len: int = 0
     error: str = ""
     output_len: Optional[int] = None
+
+
+def apply_sampling_params(
+    payload: Any,
+    request_func_input: RequestFuncInput,
+    always_top_p: bool = True,
+    temp_min: float = 0.0,
+    top_p_max: float = 1.0,
+) -> None:
+    """
+    Apply sampling parameters to the payload.
+    """
+    payload["temperature"] = max(temp_min, request_func_input.temperature)
+    if request_func_input.top_p is not None:
+        payload["top_p"] = min(request_func_input.top_p, top_p_max)
+    elif always_top_p:
+        payload["top_p"] = top_p_max
+    if request_func_input.top_k is not None:
+        payload["top_k"] = request_func_input.top_k
+    if request_func_input.best_of > 1:
+        payload["best_of"] = request_func_input.best_of
 
 
 async def async_request_tgi(
@@ -65,9 +89,8 @@ async def async_request_tgi(
             "best_of": request_func_input.best_of,
             "max_new_tokens": request_func_input.output_len,
             "do_sample": True,
-            "temperature": 0.01,  # TGI does not accept 0.0 temperature.
-            "top_p": 0.99,  # TGI does not accept 1.0 top_p.
         }
+        apply_sampling_params(params, request_func_input, temp_min=0.01, top_p_max=0.99)
         payload = {"inputs": request_func_input.prompt, "parameters": params}
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
@@ -134,11 +157,11 @@ async def async_request_trt_llm(
         payload = {
             "accumulate_tokens": True,
             "text_input": request_func_input.prompt,
-            "temperature": 0.01,  # does not support 0.0 as of NGC container version 24.06
-            "top_p": 1.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
         }
+        # does not support temp 0.0 as of NGC container version 24.06
+        apply_sampling_params(payload, request_func_input, temp_min=0.01)
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
@@ -201,13 +224,8 @@ async def async_request_deepspeed_mii(
         assert request_func_input.best_of == 1
         assert not request_func_input.use_beam_search
         assert request_func_input.logprobs is None
-
-        payload = {
-            "prompt": request_func_input.prompt,
-            "max_tokens": request_func_input.output_len,
-            "temperature": 0.01,  # deepspeed-mii does not accept 0.0 temp.
-            "top_p": 1.0,
-        }
+        payload = {"prompt": request_func_input.prompt, "max_tokens": request_func_input.output_len}
+        apply_sampling_params(payload, request_func_input, temp_min=0.01)
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
@@ -261,13 +279,13 @@ async def async_request_openai_completions(
             payload = {
                 "model": request_func_input.model,
                 "prompt": request_func_input.prompt,
-                "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
             }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
@@ -346,12 +364,12 @@ async def async_request_openai_completions(
             payload = {
                 "model": request_func_input.model,
                 "prompt": request_func_input.prompt,
-                "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream": False,
             }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
@@ -426,12 +444,12 @@ async def async_request_openai_chat_completions(
             payload = {
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
-                "temperature": 0.0,
                 "max_tokens": request_func_input.output_len,
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
             }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = True
                 payload["top_logprobs"] = int(request_func_input.logprobs)
@@ -544,10 +562,11 @@ async def async_request_cserve_debug(
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
                 "prompt": request_func_input.prompt,
-                "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
+                "sampling_params": {"n": 1, "max_tokens": request_func_input.output_len},
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
             }
+            apply_sampling_params(payload["sampling_params"], request_func_input, always_top_p=False)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
             output = RequestFuncOutput()
@@ -610,12 +629,12 @@ async def async_request_cserve_debug(
                 "prompt": request_func_input.prompt,
                 "sampling_params": {
                     "n": 1,
-                    "temperature": 0,
                     "max_tokens": request_func_input.output_len,
                     "ignore_eos": request_func_input.ignore_eos,
                 },
                 "stream": False,
             }
+            apply_sampling_params(payload["sampling_params"], request_func_input, always_top_p=False)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
             output = RequestFuncOutput()
