@@ -276,7 +276,7 @@ class ShareGPT(Data):
         os.makedirs(os.path.expanduser("~/.cache/flexible_inference_benchmark/"), exist_ok=True)
         cache_path = os.path.join(
             os.path.expanduser("~/.cache/flexible_inference_benchmark/"),
-            f"sharegpt_sizes_{filename.replace('.', '-').replace('/', '-')}_{tokenizer_id}.json",
+            f"sharegpt_sizes_{filename.replace('.', '-').replace('/', '_')}_{tokenizer_id}.json",
         )
         try:
             with open(cache_path, "r") as fcache:

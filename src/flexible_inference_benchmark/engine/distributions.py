@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import abc
 import logging
-from typing import Any, List
+from typing import Any, List, Union
 
 import numpy as np
 
@@ -25,7 +25,7 @@ class Poisson(Distribution):
         scale = 1 / self.rate
         for i in range(1, size):
             rval[i] = rval[i - 1] + np.random.exponential(scale)
-        return list(rval)
+        return rval.tolist()
 
 
 @dataclass
@@ -34,7 +34,7 @@ class Exponential(Distribution):
 
     def generate_distribution(self, size: int) -> List[float]:
         logger.debug(f"Generating Exponential distribution of size {size} with rate {self.rate}")
-        return list(np.random.exponential(self.rate, size))
+        return np.random.exponential(self.rate, size).tolist()
 
 
 @dataclass
@@ -59,12 +59,19 @@ class NormalInt(Distribution):
 
 @dataclass
 class Same(Distribution):
-    start: float
+    start: Union[float, int]
 
-    def generate_distribution(self, size: int) -> List[float]:
+    def __post_init__(self):
+        if not isinstance(self.start, int):
+            if self.start.is_integer():
+                self.start = int(self.start)
+            else:
+                self.start = float(self.start)
+
+    def generate_distribution(self, size: int) -> Union[List[float], List[int]]:
         logger.debug(f"Generating same distribution of size {size} with start {self.start}")
-        rval = np.ones(size) * self.start
-        return list(rval)
+        rval = np.ones(size, dtype=type(self.start)) * self.start
+        return rval.tolist()
 
 
 @dataclass
@@ -73,7 +80,7 @@ class Even(Distribution):
 
     def generate_distribution(self, size: int) -> List[float]:
         logger.debug(f"Generating even distribution of size {size} with rate {self.rate}")
-        return list(np.linspace(0, (size - 1) / self.rate, num=size))
+        return np.linspace(0, (size - 1) / self.rate, num=size).tolist()
 
 
 @dataclass
@@ -86,7 +93,7 @@ class AdjustedUniformInt(Distribution):
         rval = np.empty(len(lengths), dtype=np.int64)
         for i, length in enumerate(lengths):
             rval[i] = np.random.randint(self.low, self.high - length)
-        return list(rval.tolist())
+        return rval.tolist()
 
 
 DISTRIBUTION_CLASSES = {
