@@ -70,6 +70,13 @@ def test_same_values():
     generated = np.array(same.generate_distribution(10))
     assert np.all(generated == 0.0)
 
+def test_same_int_values():
+    same = distributions.Same(0)
+    generated = same.generate_distribution(10)
+    assert all([x == 0 for x in generated])
+    assert type(generated) is list
+    assert type(generated[0]) is int
+
 
 def test_even_values():
     even = distributions.Even(1.0)

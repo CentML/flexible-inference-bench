@@ -16,7 +16,7 @@ from tqdm import tqdm
 import numpy as np
 from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
-from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
+from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution, Same, UniformInt
 from flexible_inference_benchmark.utils.utils import (
     configure_logging,
     try_find_model,
@@ -168,18 +168,48 @@ def generate_prompts(
 ) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
+
+    input_prompt_dist = select_distribution(args.input_token_distribution) if args.input_token_distribution else None
+    output_token_dist = select_distribution(args.output_token_distribution) if args.output_token_distribution else None
+    if args.native_output_len:
+        if output_token_dist is not None:
+            raise ValueError(
+                "Native output length is not compatible with output token distribution. "
+                "The model will generate until EOS."
+            )
+        logger.info(
+            "User selected native output length. "
+            "Ignoring output token distribution and disabling ignore-eos. "
+            "Output length will be capped to 8192 completion tokens."
+        )
+        args.disable_ignore_eos = True
+
+        output_token_dist = Same(8192)
+
     if args.dataset_name.startswith('sharegpt'):
+        if args.input_token_distribution is not None:
+            raise ValueError(
+                "Input token distribution is not supported with ShareGPT dataset. "
+                "The prompts are already pre-defined in the dataset."
+            )
         logger.info(
             "User selected sharegpt dataset. "
-            "Ignoring prompt and output length distribution and following the shapes from the dataset."
+            "Ignoring prompt length distribution and following the prompts from the dataset."
         )
-        prompt_cls = ShareGPT(filename, tokenizer)
+        prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
-        logger.info(
-            f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."
-        )
-        input_prompt_dist = select_distribution(args.input_token_distribution)
-        output_token_dist = select_distribution(args.output_token_distribution)
+        logger.info(f"User selected {args.dataset_name} dataset. Generating prompt from distributions.")
+        if input_prompt_dist is None:
+            logger.info(
+                "Input token distribution not provided. Defaulting to uniform distribution from 1 to 255 tokens."
+            )
+            input_prompt_dist = UniformInt(1, 255)
+
+        if output_token_dist is None:
+            logger.info(
+                "Output token distribution not provided. Defaulting to uniform distribution from 1 to 255 tokens."
+            )
+            output_token_dist = UniformInt(1, 255)
 
         if args.prefix_len:
             prompt_cls = (
@@ -348,7 +378,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--input-token-distribution",
         nargs="*",
-        default=["uniform", 1, 255],
+        default=None,
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
@@ -361,8 +391,15 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--output-token-distribution",
         nargs="*",
-        default=["uniform", 1, 255],
+        default=None,
         help="Request distribution [Distribution_type (inputs to distribution)]",
+    )
+
+    benchmark_parser.add_argument(
+        "--native-output-len",
+        action="store_true",
+        help="If set, the output token distribution will be ignored and the generation will continue until EOS."
+        "This option is not compatible with output-token-distribution, and sets --disable-ignore-eos.",
     )
 
     benchmark_parser.add_argument(

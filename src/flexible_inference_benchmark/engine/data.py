@@ -1,6 +1,6 @@
 # pylint: disable=too-many-positional-arguments
 import abc
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import logging
 import json
 import random
@@ -257,7 +257,12 @@ class Random(Data):
 
 
 class ShareGPT(Data):
-    def __init__(self, filename: str, tokenizer: PreTrainedTokenizerBase) -> None:
+    def __init__(
+        self,
+        filename: str,
+        tokenizer: PreTrainedTokenizerBase,
+        output_token_distribution: Optional[distributions.Distribution] = None,
+    ) -> None:
         # From https://github.com/vllm-project/vllm/blob/v0.4.0.post1/benchmarks/benchmark_serving.py#L310
 
         self.tokenizer = tokenizer
@@ -268,8 +273,10 @@ class ShareGPT(Data):
         dataset = [data for data in dataset if len(data["conversations"]) >= 2]
 
         tokenizer_id = tokenizer.name_or_path.replace("/", "_")
+        os.makedirs(os.path.expanduser("~/.cache/flexible_inference_benchmark/"), exist_ok=True)
         cache_path = os.path.join(
-            os.path.expanduser("~/.cache/flexible_inference_benchmark/"), f"sharegpt_sizes_{tokenizer_id}.json"
+            os.path.expanduser("~/.cache/flexible_inference_benchmark/"),
+            f"sharegpt_sizes_{filename.replace('.', '-').replace('/', '_')}_{tokenizer_id}.json",
         )
         try:
             with open(cache_path, "r") as fcache:
@@ -293,6 +300,11 @@ class ShareGPT(Data):
             for i in range(len(dataset))
         ]
 
+        if output_token_distribution is not None:
+            output_lengths = output_token_distribution.generate_distribution(len(tokenized_dataset))
+            for i in range(len(tokenized_dataset)):
+                tokenized_dataset[i] = (tokenized_dataset[i][0], tokenized_dataset[i][1], output_lengths[i])
+
         filtered_dataset = [
             (prompt_str, prompt_len, output_len)
             for prompt_str, prompt_len, output_len in tokenized_dataset
@@ -301,7 +313,7 @@ class ShareGPT(Data):
 
         self.data = filtered_dataset
 
-        logger.info("Loaded ShareGPT dataset.")
+        logger.info("Loaded ShareGPT-formatted dataset.")
 
     def generate_data(self, size: int) -> List[Tuple[str, int, int]]:
         if len(self.data) < size:
