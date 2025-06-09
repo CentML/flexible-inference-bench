@@ -24,6 +24,7 @@ from flexible_inference_benchmark.utils.utils import (
     set_max_open_files,
     download_sharegpt_dataset,
 )
+from flexible_inference_benchmark.utils.tokenizer import select_tokenizer
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
@@ -440,6 +441,11 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
     )
 
+    benchmark_parser.add_argument(
+        "--tokenizer-mode", type=str, default=None, help="Specify tokenizer mode. Eg. mistral. Default None"
+    )
+
+
     benchmark_parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
     benchmark_parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
@@ -615,7 +621,7 @@ def run_main(args: argparse.Namespace) -> None:
             args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
         )
         tokenizer_id = args.tokenizer if args.tokenizer else args.model
-        tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
+        tokenizer: PreTrainedTokenizerBase = select_tokenizer(tokenizer_id, args.tokenizer_mode)
         requests_prompts = generate_prompts(args, tokenizer, size)
         min_length = min(len(requests_prompts), len(requests_times))
         requests_prompts = requests_prompts[:min_length]
