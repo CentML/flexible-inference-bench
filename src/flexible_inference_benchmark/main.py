@@ -14,7 +14,6 @@ import uuid
 import requests
 from tqdm import tqdm
 import numpy as np
-from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution, Same, UniformInt
 from flexible_inference_benchmark.utils.utils import (
@@ -444,7 +443,6 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--tokenizer-mode", type=str, default=None, help="Specify tokenizer mode. Eg. mistral. Default None"
     )
-
 
     benchmark_parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
