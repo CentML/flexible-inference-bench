@@ -53,6 +53,7 @@ class MistralTokenizerMode:
         self._vocab = tokenizer_.vocab()
         self._vocab_dict = {token: idx for idx, token in enumerate(self._vocab)}
         self.tokenizer = tokenizer_
+        self.name_or_path = repo_id
 
     def get_vocab(self) -> dict[str, int]:
         return self._vocab_dict
