@@ -1,10 +1,16 @@
 import re
 import os
+from dataclasses import dataclass
 from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from huggingface_hub import hf_hub_download
 from huggingface_hub import list_repo_files
 from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 from typing import Union, Any
+
+
+@dataclass
+class Encoding:
+    input_ids: Union[list[int], list[list[int]]]
 
 
 def find_tokenizer_file(files: list[str]) -> str:
@@ -54,6 +60,17 @@ class MistralTokenizerMode:
         self._vocab_dict = {token: idx for idx, token in enumerate(self._vocab)}
         self.tokenizer = tokenizer_
         self.name_or_path = repo_id
+
+    def __call__(self, text: Union[str, list[str]]) -> Encoding:
+        input_ids: Union[list[int], list[list[int]]]
+        if isinstance(text, str):
+            input_ids = self.encode(text)
+            return Encoding(input_ids=input_ids)
+        elif isinstance(text, list):
+            input_ids = [self.encode(t) for t in text]
+            return Encoding(input_ids=input_ids)
+        else:
+            raise TypeError(f"Unsupported type for text: {type(text)}. Expected str or list[str].")
 
     def get_vocab(self) -> dict[str, int]:
         return self._vocab_dict
