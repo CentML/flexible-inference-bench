@@ -671,7 +671,7 @@ def run_main(args: argparse.Namespace) -> None:
             if not validate_endpoint.success:
                 logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
                 sys.exit(1)
-        
+
         if args.profile:
             logger.info("Starting the Torch profiler.")
             asyncio.run(client.start_torch_profiler())
