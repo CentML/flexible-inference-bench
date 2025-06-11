@@ -665,7 +665,6 @@ def run_main(args: argparse.Namespace) -> None:
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose
         client.verbose = False
-
         logger.info(f"Sending {args.num_validation_reqs} request(s) for validation and warmup.")
         for _ in range(args.num_validation_reqs):
             validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
