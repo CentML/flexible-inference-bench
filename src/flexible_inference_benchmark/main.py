@@ -603,7 +603,7 @@ def run_main(args: argparse.Namespace) -> None:
 
     if args.profile:
         logger.info("Starting the Torch profiler.")
-        asyncio.run(client.start_torch_profiler(requests_prompts[0], requests_media[0][0]))
+        asyncio.run(client.start_torch_profiler())
 
     client.verbose = client_verbose_value
     logger.info("Beginning benchmark.")
@@ -642,7 +642,7 @@ def run_main(args: argparse.Namespace) -> None:
 
     if args.profile:
         logger.info("Stopping the Torch profiler.")
-        asyncio.run(client.stop_torch_profiler(requests_prompts[0], requests_media[0][0]))
+        asyncio.run(client.stop_torch_profiler())
 
 
 def main() -> None:

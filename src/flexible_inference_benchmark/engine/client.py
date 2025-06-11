@@ -208,15 +208,13 @@ class Client:
         )
         return await self.send_request(0, data, 0, None, None)
 
-    async def start_torch_profiler(
-        self, request: Tuple[str, int, int], media_item: List[str]
-    ) -> Union[RequestFuncOutput, Any]:
+    async def start_torch_profiler(self) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
-            prompt=request[0],
-            media=media_item,
+            prompt="",
+            media=[],
             api_url=self.base_url + "/start_profile",
-            prompt_len=request[1],
-            output_len=request[2],
+            prompt_len=0,
+            output_len=0,
             model=self.model_id,
             best_of=self.best_of,
             use_beam_search=self.use_beam_search,
@@ -228,15 +226,13 @@ class Client:
         )
         return await self.signal_profiler(0, data, 0, None, None)
 
-    async def stop_torch_profiler(
-        self, request: Tuple[str, int, int], media_item: List[str]
-    ) -> Union[RequestFuncOutput, Any]:
+    async def stop_torch_profiler(self) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
-            prompt=request[0],
-            media=media_item,
+            prompt="",
+            media=[],
             api_url=self.base_url + "/stop_profile",
-            prompt_len=request[1],
-            output_len=request[2],
+            prompt_len=0,
+            output_len=0,
             model=self.model_id,
             best_of=self.best_of,
             use_beam_search=self.use_beam_search,
