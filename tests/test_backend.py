@@ -26,6 +26,7 @@ def test_backend_function(vllm_server, args_configs):
         client = Client(
             args.backend,
             args.api_url,
+            args.base_url,
             args.model,
             args.best_of,
             args.use_beam_search,
