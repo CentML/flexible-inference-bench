@@ -16,7 +16,7 @@ def add_performance_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream, export_json=False) -> None:
+def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, stream, export_json=False) -> dict:
     actual_output_lens = []
     total_input = 0
     completed = 0
@@ -63,6 +63,9 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
     print("{:<40} {:<10.2f}".format("Output token throughput (tok/s):", output_throughput))
 
     if stream:
+        if mean_tpot_ms != 0:
+            tokens_per_second = 1000 / mean_tpot_ms
+            print("{:<40} {:<10.1f}".format("Output tokens/sec/user (excl. 1st tok):", tokens_per_second))
         print("{s:{c}^{n}}".format(s='Time to First Token', n=50, c='-'))
         print("{:<40} {:<10.2f}".format("Mean TTFT (ms):", mean_ttft_ms))
         print("{:<40} {:<10.2f}".format("Median TTFT (ms):", median_ttft_ms))
@@ -77,28 +80,31 @@ def calculate_metrics(input_requests, outputs, benchmark_duration, tokenizer, st
         print("{:<40} {:<10.2f}".format("P99 ITL (ms):", p99_itl_ms))
         print("=" * 50)
 
+    metrics = {
+        "successful_requests": completed,
+        "duration": benchmark_duration,
+        "total_input_tokens": total_input,
+        "total_generated_tokens": total_output,
+        "request_throughput": request_throughput,
+        "input_token_throughput": input_throughput,
+        "output_token_throughput": output_throughput,
+        "mean_ttft": mean_ttft_ms,
+        "median_ttft": median_ttft_ms,
+        "p99_ttft": p99_ttft_ms,
+        "mean_tpot": mean_tpot_ms,
+        "median_tpot": median_tpot_ms,
+        "p99_tpot": p99_tpot_ms,
+        "mean_itl": mean_itl_ms,
+        "median_itl": median_itl_ms,
+        "p99_itl": p99_itl_ms,
+    }
+
     if export_json:
-        data = {
-            "successful_requests": completed,
-            "duration": benchmark_duration,
-            "total_input_tokens": total_input,
-            "total_generated_tokens": total_output,
-            "request_throughput": request_throughput,
-            "input_token_throughput": input_throughput,
-            "output_token_throughput": output_throughput,
-            "mean_ttft": mean_ttft_ms,
-            "median_ttft": median_ttft_ms,
-            "p99_ttft": p99_ttft_ms,
-            "mean_tpot": mean_tpot_ms,
-            "median_tpot": median_tpot_ms,
-            "p99_tpot": p99_tpot_ms,
-            "mean_itl": mean_itl_ms,
-            "median_itl": median_itl_ms,
-            "p99_itl": p99_itl_ms,
-        }
         filename = "performance_data.json"
         with open(filename, "w") as f:
-            json.dump(data, f, indent=3)
+            json.dump(metrics, f, indent=3)
+
+    return metrics
 
 
 def run(args: argparse.Namespace):

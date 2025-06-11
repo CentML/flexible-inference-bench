@@ -10,12 +10,13 @@ import time
 from typing import List, Any, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 import base64
+import uuid
 import requests
 from tqdm import tqdm
 import numpy as np
 from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
-from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution
+from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution, Same, UniformInt
 from flexible_inference_benchmark.utils.utils import (
     configure_logging,
     try_find_model,
@@ -30,6 +31,9 @@ from flexible_inference_benchmark.engine.workloads import WORKLOADS_TYPES
 from flexible_inference_benchmark.data_postprocessors.performance import add_performance_parser, calculate_metrics
 from flexible_inference_benchmark.data_postprocessors.ttft import add_ttft_parser
 from flexible_inference_benchmark.data_postprocessors.itl import add_itl_parser
+from flexible_inference_benchmark.utils.telemetry import setup_telemetry
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +104,7 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media_per_request.append([])
+            media = []
             for _ in range(int(num_imgs_per_req)):
                 # If img_base_path is provided, store the image locally
                 # Otherwise, feed the image online
@@ -115,13 +119,14 @@ def generate_request_media(
                         img_data = requests.get(img_url, timeout=60).content
                         with open(img_path, 'wb') as handler:
                             handler.write(img_data)
-                    media_per_request[-1].append('file://' + img_path)
+                    media.append('file://' + img_path)
                 else:
                     # Fetch the image online with the ratios
-                    media_per_request[-1].append(
+                    media.append(
                         return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
                     )
                 img_cntr += 1
+            media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
             futures = [executor.submit(_process_sample) for _ in range(size)]
@@ -163,18 +168,48 @@ def generate_prompts(
 ) -> List[Tuple[str, int, int]]:
     filename = args.dataset_path
     prompt_cls: Union[Random, Textfile, ShareGPT, None] = None
+
+    input_prompt_dist = select_distribution(args.input_token_distribution) if args.input_token_distribution else None
+    output_token_dist = select_distribution(args.output_token_distribution) if args.output_token_distribution else None
+    if args.native_output_len:
+        if output_token_dist is not None:
+            raise ValueError(
+                "Native output length is not compatible with output token distribution. "
+                "The model will generate until EOS."
+            )
+        logger.info(
+            "User selected native output length. "
+            "Ignoring output token distribution and disabling ignore-eos. "
+            "Output length will be capped to 8192 completion tokens."
+        )
+        args.disable_ignore_eos = True
+
+        output_token_dist = Same(8192)
+
     if args.dataset_name.startswith('sharegpt'):
+        if args.input_token_distribution is not None:
+            raise ValueError(
+                "Input token distribution is not supported with ShareGPT dataset. "
+                "The prompts are already pre-defined in the dataset."
+            )
         logger.info(
             "User selected sharegpt dataset. "
-            "Ignoring prompt and output length distribution and following the shapes from the dataset."
+            "Ignoring prompt length distribution and following the prompts from the dataset."
         )
-        prompt_cls = ShareGPT(filename, tokenizer)
+        prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
-        logger.info(
-            f"User selected {args.dataset_name} dataset. Generating prompt and output lengths from distributions."
-        )
-        input_prompt_dist = select_distribution(args.input_token_distribution)
-        output_token_dist = select_distribution(args.output_token_distribution)
+        logger.info(f"User selected {args.dataset_name} dataset. Generating prompt from distributions.")
+        if input_prompt_dist is None:
+            logger.info(
+                "Input token distribution not provided. Defaulting to uniform distribution from 1 to 255 tokens."
+            )
+            input_prompt_dist = UniformInt(1, 255)
+
+        if output_token_dist is None:
+            logger.info(
+                "Output token distribution not provided. Defaulting to uniform distribution from 1 to 255 tokens."
+            )
+            output_token_dist = UniformInt(1, 255)
 
         if args.prefix_len:
             prompt_cls = (
@@ -350,7 +385,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--input-token-distribution",
         nargs="*",
-        default=["uniform", 1, 255],
+        default=None,
         help="Request distribution [Distribution_type (inputs to distribution)]",
     )
 
@@ -363,8 +398,15 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--output-token-distribution",
         nargs="*",
-        default=["uniform", 1, 255],
+        default=None,
         help="Request distribution [Distribution_type (inputs to distribution)]",
+    )
+
+    benchmark_parser.add_argument(
+        "--native-output-len",
+        action="store_true",
+        help="If set, the output token distribution will be ignored and the generation will continue until EOS."
+        "This option is not compatible with output-token-distribution, and sets --disable-ignore-eos.",
     )
 
     benchmark_parser.add_argument(
@@ -428,6 +470,12 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
+
+    benchmark_parser.add_argument("--temperature", "--temp", type=float, default=0.0, help="Temperature for sampling.")
+
+    benchmark_parser.add_argument("--top-p", type=float, default=None, help="Top-p for sampling.")
+
+    benchmark_parser.add_argument("--top-k", type=int, default=None, help="Top-k for sampling.")
 
     benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
 
@@ -554,95 +602,126 @@ def run_main(args: argparse.Namespace) -> None:
     if args.seed is not None:
         np.random.seed(args.seed)
         random.seed(args.seed)
-    requests_times = generate_request_times(args)
-    size = len(requests_times)
-    requests_media = generate_request_media(
-        args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
-    )
-    tokenizer_id = args.tokenizer if args.tokenizer else args.model
-    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
-    requests_prompts = generate_prompts(args, tokenizer, size)
-    min_length = min(len(requests_prompts), len(requests_times))
-    requests_prompts = requests_prompts[:min_length]
-    requests_times = requests_times[:min_length]
-    requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
-    set_max_open_files(min_length + 256)
+    # Set up telemetry
+    setup_telemetry()
+    run_id = str(uuid.uuid4())
 
-    base_url = args.base_url.strip("/")
-    endpoint = args.endpoint.strip("/")
-    args.api_url = f"{base_url}/{endpoint}"
+    # Create a top-level span for the entire experiment that is not a parent span
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_span(
+        "experiment",
+        kind=SpanKind.INTERNAL,
+        attributes={
+            "fib.run.id": run_id,
+            "fib.command": json.dumps(
+                {
+                    "subcommand": args.subcommand,
+                    "args": {k: v for k, v in vars(args).items() if k not in ['subcommand'] and v is not None},
+                }
+            ),
+        },
+    ) as span:
+        requests_times = generate_request_times(args)
+        size = len(requests_times)
+        requests_media = generate_request_media(
+            args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
+        )
+        tokenizer_id = args.tokenizer if args.tokenizer else args.model
+        tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
+        requests_prompts = generate_prompts(args, tokenizer, size)
+        min_length = min(len(requests_prompts), len(requests_times))
+        requests_prompts = requests_prompts[:min_length]
+        requests_times = requests_times[:min_length]
+        requests_media = [arr_dims[:min_length] for arr_dims in requests_media]
 
-    client = Client(
-        args.backend,
-        args.api_url,
-        base_url,
-        args.model,
-        args.best_of,
-        args.use_beam_search,
-        True if args.verbose else args.disable_tqdm,
-        args.https_ssl,
-        not args.disable_ignore_eos,
-        not args.disable_stream,
-        args.cookies,
-        args.verbose,
-        args.max_concurrent,
-        args.wave,
-        args.logprobs,
-    )
-    # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
-    client_verbose_value = client.verbose
-    client.verbose = False
+        set_max_open_files(min_length + 256)
 
-    logger.info(f"Sending {args.num_validation_reqs} requests for validation and warmup.")
-    for _ in range(args.num_validation_reqs):
-        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
-        if not validate_endpoint.success:
-            logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-            sys.exit(1)
+        base_url = args.base_url.strip("/")
+        endpoint = args.endpoint.strip("/")
+        args.api_url = f"{base_url}/{endpoint}"
 
-    if args.profile:
-        logger.info("Starting the Torch profiler.")
-        asyncio.run(client.start_torch_profiler())
+        client = Client(
+            args.backend,
+            args.api_url,
+            args.base_url,
+            args.model,
+            args.best_of,
+            args.use_beam_search,
+            True if args.verbose else args.disable_tqdm,
+            args.https_ssl,
+            not args.disable_ignore_eos,
+            not args.disable_stream,
+            args.cookies,
+            args.verbose,
+            args.max_concurrent,
+            args.wave,
+            args.logprobs,
+            args.temperature,
+            args.top_p,
+            args.top_k,
+            run_id=run_id,
+        )
+        # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
+        client_verbose_value = client.verbose
+        client.verbose = False
 
-    client.verbose = client_verbose_value
-    logger.info("Beginning benchmark.")
-    for idx, arr_dims in enumerate(requests_media):
-        if args.num_of_imgs_per_req:
-            logger.info(
-                (
-                    f"Benchmarking with {args.num_of_imgs_per_req} images per request "
-                    f"with ratio {args.img_ratios_per_req[idx]}"
-                )
-            )
-        t = time.perf_counter()
-        output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
-        benchmark_time = time.perf_counter() - t
-        # pylint: disable=line-too-long
-        output = {
-            "backend": args.backend,
-            "time": benchmark_time,
-            "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
-            "inputs": requests_prompts,
-            "tokenizer": args.tokenizer if args.tokenizer else args.model,
-            "stream": not args.disable_stream,
-        }
+        logger.info(f"Sending {args.num_validation_reqs} request(s) for validation and warmup.")
+        for _ in range(args.num_validation_reqs):
+            validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
+            if not validate_endpoint.success:
+                logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
+                sys.exit(1)
+        
+        if args.profile:
+            logger.info("Starting the Torch profiler.")
+            asyncio.run(client.start_torch_profiler())
 
-        if args.output_file:
-            filename = args.output_file
+        client.verbose = client_verbose_value
+        logger.info("Beginning benchmark.")
+
+        for idx, arr_dims in enumerate(requests_media):
             if args.num_of_imgs_per_req:
-                w, h = args.img_ratios_per_req[idx]
-                filename = f"ratio_{w}x{h}_{filename}"
-            with open(filename, "w") as f:
-                f.write(json.dumps(output, indent=4))  # type: ignore
-        if args.debug:
-            logger.debug(f"{output_list}")
+                logger.info(
+                    (
+                        f"Benchmarking with {args.num_of_imgs_per_req} images per request "
+                        f"with ratio {args.img_ratios_per_req[idx]}"
+                    )
+                )
+            t = time.perf_counter()
+            output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
+            benchmark_time = time.perf_counter() - t
+            # pylint: disable=line-too-long
+            output = {
+                "backend": args.backend,
+                "time": benchmark_time,
+                "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
+                "inputs": requests_prompts,
+                "tokenizer": args.tokenizer if args.tokenizer else args.model,
+                "stream": not args.disable_stream,
+            }
 
-        calculate_metrics(output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"])
+            # Calculate performance metrics and add them as span attributes
+            metrics = calculate_metrics(
+                output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"]
+            )
+            # Add metrics as a single JSON blob attribute
+            span.set_attribute("fib.metrics", json.dumps(metrics))
 
-    if args.profile:
-        logger.info("Stopping the Torch profiler.")
-        asyncio.run(client.stop_torch_profiler())
+            if args.output_file:
+                filename = args.output_file
+                if args.num_of_imgs_per_req:
+                    w, h = args.img_ratios_per_req[idx]
+                    filename = f"ratio_{w}x{h}_{filename}"
+                with open(filename, "w") as f:
+                    f.write(json.dumps(output, indent=4))  # type: ignore
+            if args.debug:
+                logger.debug(f"{output_list}")
+
+        client.verbose = False
+        if args.profile:
+            logger.info("Stopping the Torch profiler.")
+            asyncio.run(client.stop_torch_profiler())
 
 
 def main() -> None:

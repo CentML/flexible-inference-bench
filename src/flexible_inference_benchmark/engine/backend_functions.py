@@ -9,8 +9,13 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 import aiohttp
 from tqdm.asyncio import tqdm
+from opentelemetry import trace
+from flexible_inference_benchmark.utils.telemetry import create_span_attributes
 
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
+
+# Get the tracer
+tracer = trace.get_tracer(__name__)
 
 
 class bcolors:
@@ -33,6 +38,10 @@ class RequestFuncInput(BaseModel):
     stream: bool = True
     cookies: Dict[str, str]
     logprobs: Optional[int] = None
+    temperature: float = 0.0
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    run_id: Optional[str] = None
 
 
 class RequestFuncOutput(BaseModel):
@@ -44,6 +53,27 @@ class RequestFuncOutput(BaseModel):
     prompt_len: int = 0
     error: str = ""
     output_len: Optional[int] = None
+
+
+def apply_sampling_params(
+    payload: Any,
+    request_func_input: RequestFuncInput,
+    always_top_p: bool = True,
+    temp_min: float = 0.0,
+    top_p_max: float = 1.0,
+) -> None:
+    """
+    Apply sampling parameters to the payload.
+    """
+    payload["temperature"] = max(temp_min, request_func_input.temperature)
+    if request_func_input.top_p is not None:
+        payload["top_p"] = min(request_func_input.top_p, top_p_max)
+    elif always_top_p:
+        payload["top_p"] = top_p_max
+    if request_func_input.top_k is not None:
+        payload["top_k"] = request_func_input.top_k
+    if request_func_input.best_of > 1:
+        payload["best_of"] = request_func_input.best_of
 
 
 async def async_request_tgi(
@@ -59,9 +89,8 @@ async def async_request_tgi(
             "best_of": request_func_input.best_of,
             "max_new_tokens": request_func_input.output_len,
             "do_sample": True,
-            "temperature": 0.01,  # TGI does not accept 0.0 temperature.
-            "top_p": 0.99,  # TGI does not accept 1.0 top_p.
         }
+        apply_sampling_params(params, request_func_input, temp_min=0.01, top_p_max=0.99)
         payload = {"inputs": request_func_input.prompt, "parameters": params}
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
@@ -72,7 +101,7 @@ async def async_request_tgi(
         if verbose:
             print_verbose(idx, request_func_input, st, 0, 0, True)
         try:
-            async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
+            async with session.post(url=api_url, json=payload, ssl=request_func_input.ssl) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -128,11 +157,11 @@ async def async_request_trt_llm(
         payload = {
             "accumulate_tokens": True,
             "text_input": request_func_input.prompt,
-            "temperature": 0.01,  # does not support 0.0 as of NGC container version 24.06
-            "top_p": 1.0,
             "max_tokens": request_func_input.output_len,
             "stream": True,
         }
+        # does not support temp 0.0 as of NGC container version 24.06
+        apply_sampling_params(payload, request_func_input, temp_min=0.01)
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
@@ -142,7 +171,7 @@ async def async_request_trt_llm(
         if verbose:
             print_verbose(idx, request_func_input, most_recent_timestamp, 0, 0, True)
         try:
-            async with session.post(url=api_url, json=payload, verify_ssl=request_func_input.ssl) as response:
+            async with session.post(url=api_url, json=payload, ssl=request_func_input.ssl) as response:
                 if response.status == 200:
                     async for chunk_bytes in response.content:
                         chunk_bytes = chunk_bytes.strip()
@@ -195,13 +224,8 @@ async def async_request_deepspeed_mii(
         assert request_func_input.best_of == 1
         assert not request_func_input.use_beam_search
         assert request_func_input.logprobs is None
-
-        payload = {
-            "prompt": request_func_input.prompt,
-            "max_tokens": request_func_input.output_len,
-            "temperature": 0.01,  # deepspeed-mii does not accept 0.0 temp.
-            "top_p": 1.0,
-        }
+        payload = {"prompt": request_func_input.prompt, "max_tokens": request_func_input.output_len}
+        apply_sampling_params(payload, request_func_input, temp_min=0.01)
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
@@ -215,7 +239,7 @@ async def async_request_deepspeed_mii(
             print_verbose(idx, request_func_input, st, 0, 0, True)
         try:
             async with session.post(
-                url=request_func_input.api_url, json=payload, verify_ssl=request_func_input.ssl
+                url=request_func_input.api_url, json=payload, ssl=request_func_input.ssl
             ) as response:
                 if response.status == 200:
                     parsed_resp = await response.json()
@@ -255,13 +279,13 @@ async def async_request_openai_completions(
             payload = {
                 "model": request_func_input.model,
                 "prompt": request_func_input.prompt,
-                "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
             }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
@@ -278,7 +302,7 @@ async def async_request_openai_completions(
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
-                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                    url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         async for chunk_bytes in response.content:
@@ -340,12 +364,12 @@ async def async_request_openai_completions(
             payload = {
                 "model": request_func_input.model,
                 "prompt": request_func_input.prompt,
-                "temperature": 0.0,
                 "best_of": request_func_input.best_of,
                 "max_tokens": request_func_input.output_len,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream": False,
             }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = int(request_func_input.logprobs)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
@@ -358,7 +382,7 @@ async def async_request_openai_completions(
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
-                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                    url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         parsed_resp = await response.json()
@@ -405,100 +429,125 @@ async def async_request_openai_chat_completions(
     for media_item in request_func_input.media:
         content_body.append({"type": "image_url", "image_url": {"url": media_item}})
 
-    async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
-        assert not request_func_input.use_beam_search
-        payload = {
-            "model": request_func_input.model,
-            "messages": [{"role": "user", "content": content_body}],
-            "temperature": 0.0,
-            "max_tokens": request_func_input.output_len,
-            "stream": True,
-            "ignore_eos": request_func_input.ignore_eos,
-            "stream_options": {"include_usage": True},
-        }
-        if request_func_input.logprobs is not None:
-            payload["logprobs"] = True
-            payload["top_logprobs"] = int(request_func_input.logprobs)
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
+    with tracer.start_as_current_span(
+        f"request_{idx}",
+        attributes=create_span_attributes(
+            prompt_tokens=request_func_input.prompt_len,
+            image_count=len(request_func_input.media) if request_func_input.media else 0,
+            image_sizes=[len(img) for img in request_func_input.media] if request_func_input.media else [],
+            response_tokens=0,  # Will be updated after response
+            run_id=request_func_input.run_id or "unknown",  # Provide default value for None
+        ),
+    ) as span:
+        async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
+            assert not request_func_input.use_beam_search
+            payload = {
+                "model": request_func_input.model,
+                "messages": [{"role": "user", "content": content_body}],
+                "max_tokens": request_func_input.output_len,
+                "stream": True,
+                "ignore_eos": request_func_input.ignore_eos,
+                "stream_options": {"include_usage": True},
+            }
+            apply_sampling_params(payload, request_func_input, always_top_p=False)
+            if request_func_input.logprobs is not None:
+                payload["logprobs"] = True
+                payload["top_logprobs"] = int(request_func_input.logprobs)
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            }
 
-        output = RequestFuncOutput()
-        output.prompt_len = request_func_input.prompt_len
+            output = RequestFuncOutput()
+            output.prompt_len = request_func_input.prompt_len
 
-        generated_text = ""
-        ttft = 0.0
-        st = time.perf_counter()
-        most_recent_timestamp = st
-        if verbose:
-            print_verbose(idx, request_func_input, st, 0, 0, True)
-        try:
-            async with session.post(
-                url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
-            ) as response:
-                if response.status == 200:
-                    latency = 0.0
-                    async for chunk_bytes in response.content:
-                        chunk_bytes = chunk_bytes.strip()
-                        if not chunk_bytes:
-                            continue
+            generated_text = ""
+            ttft = 0.0
+            st = time.perf_counter()
+            most_recent_timestamp = st
+            if verbose:
+                print_verbose(idx, request_func_input, st, 0, 0, True)
+            try:
+                with tracer.start_as_current_span("http_request"):
+                    async with session.post(
+                        url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
+                    ) as response:
+                        if response.status == 200:
+                            latency = 0.0
+                            with tracer.start_as_current_span("response_processing") as process_span:
+                                async for chunk_bytes in response.content:
+                                    chunk_bytes = chunk_bytes.strip()
+                                    if not chunk_bytes:
+                                        continue
 
-                        chunk = remove_prefix(chunk_bytes.decode("utf-8"), "data: ")
-                        if chunk == "[DONE]":
-                            latency = time.perf_counter() - st
+                                    chunk = remove_prefix(chunk_bytes.decode("utf-8"), "data: ")
+                                    if chunk == "[DONE]":
+                                        latency = time.perf_counter() - st
+                                    else:
+                                        timestamp = time.perf_counter()
+                                        data = json.loads(chunk)
+
+                                        delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
+                                        content = delta.get("content", None) if delta is not None else None
+                                        reasoning_content = (
+                                            delta.get("reasoning_content", None) if delta is not None else None
+                                        )
+                                        if (content is not None or reasoning_content is not None) and not (
+                                            ttft == 0.0 and (content == '' or reasoning_content == '')
+                                        ):
+                                            if ttft == 0.0:
+                                                ttft = time.perf_counter() - st
+                                                output.ttft = ttft
+                                                process_span.set_attribute("fib.time_to_first_token", ttft)
+
+                                            else:
+                                                output.itl.append(timestamp - most_recent_timestamp)
+                                                process_span.set_attribute(
+                                                    "fib.inter_token_latency", timestamp - most_recent_timestamp
+                                                )
+                                            if content:
+                                                generated_text += content
+                                            elif reasoning_content:
+                                                generated_text += reasoning_content
+                                            most_recent_timestamp = timestamp
+
+                                        if "usage" in data:
+                                            if data["usage"]["completion_tokens"]:
+                                                output.output_len = int(data["usage"]["completion_tokens"])
+                                                process_span.set_attribute("fib.completion_tokens", output.output_len)
+                                            if data["usage"]["prompt_tokens"]:
+                                                output.prompt_len = int(data["usage"]["prompt_tokens"])
+                                                process_span.set_attribute("fib.prompt_tokens", output.prompt_len)
+
+                            output.generated_text = generated_text
+                            output.success = True
+                            output.latency = latency
+                            span.set_attribute("fib.total_latency", latency)
+                            span.set_attribute("fib.total_tokens", len(generated_text))
+
+                            if verbose:
+                                print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
                         else:
-                            timestamp = time.perf_counter()
-                            data = json.loads(chunk)
+                            output.error = response.reason or ""
+                            output.success = False
+                            span.set_attribute("fib.error", output.error)
 
-                            delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
-                            content = delta.get("content", None) if delta is not None else None
-                            reasoning_content = delta.get("reasoning_content", None) if delta is not None else None
-                            # Make sure to include the content if it's not None
-                            # Since EOS can translate to an empty string, include `content == ""`
-                            # as long as it's not the first token
-                            if (content is not None or reasoning_content is not None) and not (
-                                ttft == 0.0 and (content == '' or reasoning_content == '')
-                            ):
-                                # First token
-                                if ttft == 0.0:
-                                    ttft = time.perf_counter() - st
-                                    output.ttft = ttft
+            except aiohttp.ClientConnectorError:
+                output.success = False
+                output.error = "connection error, please verify the server is running"
+                span.set_attribute("fib.error", output.error)
 
-                                # Decoding phase
-                                else:
-                                    output.itl.append(timestamp - most_recent_timestamp)
-                                if content:
-                                    generated_text += content
-                                elif reasoning_content:
-                                    generated_text += reasoning_content
-                                most_recent_timestamp = timestamp
+            except Exception:  # pylint: disable=broad-except
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error = "".join(traceback.format_exception(*exc_info))
+                span.set_attribute("fib.error", output.error)
 
-                            if "usage" in data:
-                                if data["usage"]["completion_tokens"]:
-                                    output.output_len = int(data["usage"]["completion_tokens"])
-                                if data["usage"]["prompt_tokens"]:
-                                    output.prompt_len = int(data["usage"]["prompt_tokens"])
+            if pbar:
+                with tracer.start_as_current_span("progress_update"):
+                    pbar.update(1)
 
-                    output.generated_text = generated_text
-                    output.success = True
-                    output.latency = latency
-
-                    if verbose:
-                        print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
-                else:
-                    output.error = response.reason or ""
-                    output.success = False
-
-        except aiohttp.ClientConnectorError:
-            output.success = False
-            output.error = "connection error, please verify the server is running"
-
-        except Exception:  # pylint: disable=broad-except
-            output.success = False
-            exc_info = sys.exc_info()
-            output.error = "".join(traceback.format_exception(*exc_info))
-
-    if pbar:
-        pbar.update(1)
-    return output
+            return output
 
 
 async def async_request_cserve_debug(
@@ -513,10 +562,11 @@ async def async_request_cserve_debug(
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT, cookies=request_func_input.cookies) as session:
             payload = {
                 "prompt": request_func_input.prompt,
-                "sampling_params": {"n": 1, "temperature": 0, "max_tokens": request_func_input.output_len},
+                "sampling_params": {"n": 1, "max_tokens": request_func_input.output_len},
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
             }
+            apply_sampling_params(payload["sampling_params"], request_func_input, always_top_p=False)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
             output = RequestFuncOutput()
@@ -530,7 +580,7 @@ async def async_request_cserve_debug(
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
-                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                    url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         async for chunk_bytes in response.content:
@@ -579,12 +629,12 @@ async def async_request_cserve_debug(
                 "prompt": request_func_input.prompt,
                 "sampling_params": {
                     "n": 1,
-                    "temperature": 0,
                     "max_tokens": request_func_input.output_len,
                     "ignore_eos": request_func_input.ignore_eos,
                 },
                 "stream": False,
             }
+            apply_sampling_params(payload["sampling_params"], request_func_input, always_top_p=False)
             headers = {"Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"}
 
             output = RequestFuncOutput()
@@ -596,7 +646,7 @@ async def async_request_cserve_debug(
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
                 async with session.post(
-                    url=api_url, json=payload, headers=headers, verify_ssl=request_func_input.ssl
+                    url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                 ) as response:
                     if response.status == 200:
                         parsed_resp = await response.json()

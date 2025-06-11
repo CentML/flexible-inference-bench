@@ -1,6 +1,7 @@
 # pylint: disable=too-many-positional-arguments
 import asyncio
 import logging
+import uuid
 from typing import List, Tuple, Callable, Optional, Any, Coroutine, Union, Dict
 import random
 from tqdm import tqdm
@@ -39,6 +40,10 @@ class Client:
         max_concurrent: Optional[int],
         wave: Optional[List[int]],
         logprobs: Optional[int],
+        temperature: float = 0.0,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        run_id: Optional[str] = None,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -57,6 +62,10 @@ class Client:
         if wave:
             self.wave_min, self.wave_max, self.wave_sustain = wave
         self.logprobs = logprobs
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.run_id = run_id or str(uuid.uuid4())
 
     @property
     def request_func(
@@ -165,6 +174,10 @@ class Client:
                 stream=self.stream,
                 cookies=self.cookies,
                 logprobs=self.logprobs,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                run_id=self.run_id,
             )
             for (data_sample, media_sample) in zip(data, requests_media)
         ]
@@ -205,8 +218,11 @@ class Client:
             stream=self.stream,
             cookies=self.cookies,
             logprobs=self.logprobs,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            top_k=self.top_k,
         )
-        return await self.send_request(0, data, 0, None, None)
+        return await self.send_request(-1, data, 0, None, None)
 
     async def start_torch_profiler(self) -> Union[RequestFuncOutput, Any]:
         data = RequestFuncInput(
