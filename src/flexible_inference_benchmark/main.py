@@ -24,6 +24,7 @@ from flexible_inference_benchmark.utils.utils import (
     download_sharegpt_dataset,
 )
 from flexible_inference_benchmark.utils.tokenizer import select_tokenizer
+from flexible_inference_benchmark.utils.image_preprocesing import change_image_pixels
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
@@ -38,30 +39,28 @@ from opentelemetry.trace import SpanKind
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_URL_by_size(width: int, height: int, convert_to_base64: bool = False) -> str:
+def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Union[bytes, str]:
 
-    image_url = f"https://loremflickr.com/{width}/{height}"
+    image_url = f"https://picsum.photos/{width}/{height}"
     if convert_to_base64:
         max_retries = 5
-        data_url = None
+        data_bytes = None
         for _ in range(max_retries):
             try:
                 time.sleep(1)
                 response = requests.get(image_url, timeout=10)
                 response.raise_for_status()
-                base64_bytes = base64.b64encode(response.content)
-                base64_string = base64_bytes.decode('utf-8')
-                data_url = f"data:image/jpeg;base64,{base64_string}"
+                data_bytes = base64.b64encode(response.content)
                 break
             except requests.HTTPError as e:
                 logger.warning(f"Failed to fetch image from {image_url}: {e}")
 
-        if data_url is None:
+        if data_bytes is None:
             raise ValueError(
                 f"Failed to fetch image from {image_url} after {max_retries} retries. "
                 "Please check the URL or your internet connection."
             )
-        return data_url
+        return data_bytes
     else:
         return image_url
 
@@ -105,7 +104,7 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media_url = ""
+            media_content = ""
             # If img_base_path is provided, store the image locally
             # Otherwise, feed the image online
             if img_base_path:
@@ -115,17 +114,20 @@ def generate_request_media(
                 if not os.path.exists(img_path):
                     os.makedirs(img_base_path, exist_ok=True)
                     logger.info(f"Downloading image to {img_path} ...")
-                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                    img_url = return_random_image_by_size(ratios[0], ratios[1])
                     img_data = requests.get(img_url, timeout=60).content
                     with open(img_path, 'wb') as handler:
                         handler.write(img_data)
-                media_url = 'file://' + img_path
+                media_content = 'file://' + img_path
             else:
                 # Fetch the image online with the ratios
-                media_url = return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
+                media_content = return_random_image_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
                 
             img_cntr += 1
-            media = [media_url] * num_imgs_per_req
+            if send_image_with_base64:
+                media = change_image_pixels(media_content, iterations=num_imgs_per_req)
+            else:
+                media = [media_content] * num_imgs_per_req
             media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
