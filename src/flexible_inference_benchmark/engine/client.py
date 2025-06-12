@@ -27,6 +27,7 @@ class Client:
         self,
         backend: str,
         api_url: str,
+        base_url: str,
         model_id: str,
         best_of: int,
         use_beam_search: bool,
@@ -46,6 +47,7 @@ class Client:
     ):
         self.backend = backend
         self.api_url = api_url
+        self.base_url = base_url
         self.model_id = model_id
         self.best_of = best_of
         self.use_beam_search = use_beam_search
@@ -85,6 +87,21 @@ class Client:
                 return await self.request_func(idx, data, pbar, self.verbose, wait_time)
         else:
             return await self.request_func(idx, data, pbar, self.verbose, wait_time)
+
+    async def signal_profiler(
+        self,
+        idx: int,
+        data: RequestFuncInput,
+        wait_time: float,
+        pbar: Optional[tqdm],
+        sema: Optional[asyncio.BoundedSemaphore],
+    ) -> Optional[Union[RequestFuncOutput, Any]]:
+        await asyncio.sleep(wait_time)
+        if sema:
+            async with sema:
+                return await ASYNC_REQUEST_FUNCS['profiler'](idx, data, pbar, self.verbose, wait_time)
+        else:
+            return await ASYNC_REQUEST_FUNCS['profiler'](idx, data, pbar, self.verbose, wait_time)
 
     async def send_wave_request(
         self,
@@ -206,3 +223,39 @@ class Client:
             top_k=self.top_k,
         )
         return await self.send_request(-1, data, 0, None, None)
+
+    async def start_torch_profiler(self) -> Union[RequestFuncOutput, Any]:
+        data = RequestFuncInput(
+            prompt="",
+            media=[],
+            api_url=self.base_url + "/start_profile",
+            prompt_len=0,
+            output_len=0,
+            model=self.model_id,
+            best_of=self.best_of,
+            use_beam_search=self.use_beam_search,
+            ssl=self.ssl,
+            ignore_eos=self.ignore_eos,
+            stream=self.stream,
+            cookies=self.cookies,
+            logprobs=self.logprobs,
+        )
+        return await self.signal_profiler(0, data, 0, None, None)
+
+    async def stop_torch_profiler(self) -> Union[RequestFuncOutput, Any]:
+        data = RequestFuncInput(
+            prompt="",
+            media=[],
+            api_url=self.base_url + "/stop_profile",
+            prompt_len=0,
+            output_len=0,
+            model=self.model_id,
+            best_of=self.best_of,
+            use_beam_search=self.use_beam_search,
+            ssl=self.ssl,
+            ignore_eos=self.ignore_eos,
+            stream=self.stream,
+            cookies=self.cookies,
+            logprobs=self.logprobs,
+        )
+        return await self.signal_profiler(0, data, 0, None, None)

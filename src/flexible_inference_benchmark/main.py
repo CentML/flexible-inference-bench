@@ -340,6 +340,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--num-validation-reqs",
+        type=int,
+        default=1,
+        help="Number of requests to send for validation and warmup before the benchmark.",
+    )
+
+    benchmark_parser.add_argument(
         "--send-image-with-base64",
         action="store_true",
         help="Send images as base64 encoded strings. This is useful for testing the server's ability to handle"
@@ -455,6 +462,12 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument("--debug", action="store_true", help="Log debug messages.")
+
+    benchmark_parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Use Torch Profiler. The endpoint must be launched with " "VLLM_TORCH_PROFILER_DIR to enable profiler.",
+    )
 
     benchmark_parser.add_argument("--verbose", action="store_true", help="Print short description of each request.")
 
@@ -631,6 +644,7 @@ def run_main(args: argparse.Namespace) -> None:
         client = Client(
             args.backend,
             args.api_url,
+            args.base_url,
             args.model,
             args.best_of,
             args.use_beam_search,
@@ -651,11 +665,17 @@ def run_main(args: argparse.Namespace) -> None:
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose
         client.verbose = False
-        logger.info("Sending a single request for validation.")
-        validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
-        if not validate_endpoint.success:
-            logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
-            sys.exit(1)
+        logger.info(f"Sending {args.num_validation_reqs} request(s) for validation and warmup.")
+        for _ in range(args.num_validation_reqs):
+            validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
+            if not validate_endpoint.success:
+                logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
+                sys.exit(1)
+
+        if args.profile:
+            logger.info("Starting the Torch profiler.")
+            asyncio.run(client.start_torch_profiler())
+
         client.verbose = client_verbose_value
         logger.info("Beginning benchmark.")
 
@@ -696,6 +716,11 @@ def run_main(args: argparse.Namespace) -> None:
                     f.write(json.dumps(output, indent=4))  # type: ignore
             if args.debug:
                 logger.debug(f"{output_list}")
+
+        client.verbose = False
+        if args.profile:
+            logger.info("Stopping the Torch profiler.")
+            asyncio.run(client.stop_torch_profiler())
 
 
 def main() -> None:

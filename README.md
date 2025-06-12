@@ -50,6 +50,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--num-of-imgs-per-req` | Number of images to attach to each request. Example: `3`. |
 | `--img-ratios-per-req` | Image aspect ratios (width x height) to attach per request. Example: `1000x1000`. Default: `500x500` |
 | `--img-base-path` | Base image directory. Example: `/path/to/imgs/`. If provided, images will be downloaded to this directory before benchmarking and fed from here. If not provided, images will be fed online, which could cause excessive network delays in large numbers. To enable this, the serving engine also needs to start with the `--allowed-local-media-path /path/to/imgs/` option. Default: `None`. |
+| `--num-validation-reqs` | Number of requests to send for validation and warmup before the benchmark. Default: `1`. |
 | one of:<br>`--prefix-text` or <br>`--prefix-len` | <br> Text to use as prefix for all requests. <br> Length of prefix to use for all requests. If neither are provided, no prefix is used. |
 | `--dataset-name` (`--dataset`) | Name of the dataset to benchmark on <br> {`sharegpt`,`other`,`random`}. |
 | `--dataset-path` | Path to the dataset. If `sharegpt` is the dataset and this is not provided, it will be automatically downloaded and cached. Otherwise, the dataset name will default to `other`. |
@@ -60,6 +61,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--use-beam-search` | Use beam search for completions. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
+| `--profile` | Use Torch Profiler. The endpoint must be launched with VLLM_TORCH_PROFILER_DIR to enable profiler. |
 | `--verbose` | Summarize each request. |
 | `--disable-ignore-eos` | Ignores end of sequence.<br> **Note:** Not valid argument for TensorRT-LLM |
 | `--disable-stream` | The requests are send with Stream: False. (Used for APIs without an stream option) |
