@@ -39,7 +39,7 @@ from opentelemetry.trace import SpanKind
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Union[bytes, str]:
+def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Any:
 
     image_url = f"https://picsum.photos/{width}/{height}"
     if convert_to_base64:
@@ -104,7 +104,6 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media_content = ""
             # If img_base_path is provided, store the image locally
             # Otherwise, feed the image online
             if img_base_path:
@@ -118,16 +117,18 @@ def generate_request_media(
                     img_data = requests.get(img_url, timeout=60).content
                     with open(img_path, 'wb') as handler:
                         handler.write(img_data)
-                media_content = 'file://' + img_path
+                media_str = 'file://' + img_path
             else:
                 # Fetch the image online with the ratios
-                media_content = return_random_image_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
-                
+                media_bytes: bytes = return_random_image_by_size(
+                    ratios[0], ratios[1], convert_to_base64=send_image_with_base64
+                )
+
             img_cntr += 1
             if send_image_with_base64:
-                media = change_image_pixels(media_content, iterations=num_imgs_per_req)
+                media = change_image_pixels(media_bytes, iterations=num_imgs_per_req)
             else:
-                media = [media_content] * num_imgs_per_req
+                media = [media_str] * num_imgs_per_req
             media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
