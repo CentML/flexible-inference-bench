@@ -42,11 +42,12 @@ def return_random_image_URL_by_size(width: int, height: int, convert_to_base64: 
 
     image_url = f"https://loremflickr.com/{width}/{height}"
     if convert_to_base64:
-        max_retries = 3
+        max_retries = 5
         data_url = None
         for _ in range(max_retries):
             try:
-                response = requests.get(image_url, timeout=5)
+                time.sleep(1)
+                response = requests.get(image_url, timeout=10)
                 response.raise_for_status()
                 base64_bytes = base64.b64encode(response.content)
                 base64_string = base64_bytes.decode('utf-8')
@@ -104,28 +105,27 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media = []
-            for _ in range(int(num_imgs_per_req)):
-                # If img_base_path is provided, store the image locally
-                # Otherwise, feed the image online
-                if img_base_path:
-                    assert not send_image_with_base64, "Base64 encoding is not supported for local images"
-                    # If an image doesn't exist, download it
-                    img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
-                    if not os.path.exists(img_path):
-                        os.makedirs(img_base_path, exist_ok=True)
-                        logger.info(f"Downloading image to {img_path} ...")
-                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
-                        img_data = requests.get(img_url, timeout=60).content
-                        with open(img_path, 'wb') as handler:
-                            handler.write(img_data)
-                    media.append('file://' + img_path)
-                else:
-                    # Fetch the image online with the ratios
-                    media.append(
-                        return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
-                    )
-                img_cntr += 1
+            media_url = ""
+            # If img_base_path is provided, store the image locally
+            # Otherwise, feed the image online
+            if img_base_path:
+                assert not send_image_with_base64, "Base64 encoding is not supported for local images"
+                # If an image doesn't exist, download it
+                img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
+                if not os.path.exists(img_path):
+                    os.makedirs(img_base_path, exist_ok=True)
+                    logger.info(f"Downloading image to {img_path} ...")
+                    img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
+                    img_data = requests.get(img_url, timeout=60).content
+                    with open(img_path, 'wb') as handler:
+                        handler.write(img_data)
+                media_url = 'file://' + img_path
+            else:
+                # Fetch the image online with the ratios
+                media_url = return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
+                
+            img_cntr += 1
+            media = [media_url] * num_imgs_per_req
             media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
