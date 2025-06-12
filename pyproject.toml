@@ -20,7 +20,7 @@ dependencies = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp",
     "opentelemetry-instrumentation-aiohttp-client",
-    "mistral_common[opencv] >= 1.5.4"
+    "mistral_common[opencv] == 1.5.4"
 ]
 
 classifiers = [
