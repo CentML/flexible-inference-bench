@@ -14,7 +14,6 @@ import uuid
 import requests
 from tqdm import tqdm
 import numpy as np
-from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution, Same, UniformInt
 from flexible_inference_benchmark.utils.utils import (
@@ -24,6 +23,8 @@ from flexible_inference_benchmark.utils.utils import (
     set_max_open_files,
     download_sharegpt_dataset,
 )
+from flexible_inference_benchmark.utils.tokenizer import select_tokenizer
+from flexible_inference_benchmark.utils.image_preprocesing import change_image_pixels
 from flexible_inference_benchmark.engine.data import ShareGPT, Textfile, Random
 from flexible_inference_benchmark.engine.client import Client
 from flexible_inference_benchmark.engine.backend_functions import ASYNC_REQUEST_FUNCS
@@ -38,29 +39,28 @@ from opentelemetry.trace import SpanKind
 logger = logging.getLogger(__name__)
 
 
-def return_random_image_URL_by_size(width: int, height: int, convert_to_base64: bool = False) -> str:
+def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Any:
 
-    image_url = f"https://loremflickr.com/{width}/{height}"
+    image_url = f"https://picsum.photos/{width}/{height}"
     if convert_to_base64:
-        max_retries = 3
-        data_url = None
+        max_retries = 5
+        data_bytes = None
         for _ in range(max_retries):
             try:
-                response = requests.get(image_url, timeout=5)
+                time.sleep(1)
+                response = requests.get(image_url, timeout=10)
                 response.raise_for_status()
-                base64_bytes = base64.b64encode(response.content)
-                base64_string = base64_bytes.decode('utf-8')
-                data_url = f"data:image/jpeg;base64,{base64_string}"
+                data_bytes = base64.b64encode(response.content)
                 break
             except requests.HTTPError as e:
                 logger.warning(f"Failed to fetch image from {image_url}: {e}")
 
-        if data_url is None:
+        if data_bytes is None:
             raise ValueError(
                 f"Failed to fetch image from {image_url} after {max_retries} retries. "
                 "Please check the URL or your internet connection."
             )
-        return data_url
+        return data_bytes
     else:
         return image_url
 
@@ -104,28 +104,31 @@ def generate_request_media(
 
         def _process_sample() -> None:
             nonlocal img_cntr
-            media = []
-            for _ in range(int(num_imgs_per_req)):
-                # If img_base_path is provided, store the image locally
-                # Otherwise, feed the image online
-                if img_base_path:
-                    assert not send_image_with_base64, "Base64 encoding is not supported for local images"
-                    # If an image doesn't exist, download it
-                    img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
-                    if not os.path.exists(img_path):
-                        os.makedirs(img_base_path, exist_ok=True)
-                        logger.info(f"Downloading image to {img_path} ...")
-                        img_url = return_random_image_URL_by_size(ratios[0], ratios[1])
-                        img_data = requests.get(img_url, timeout=60).content
-                        with open(img_path, 'wb') as handler:
-                            handler.write(img_data)
-                    media.append('file://' + img_path)
-                else:
-                    # Fetch the image online with the ratios
-                    media.append(
-                        return_random_image_URL_by_size(ratios[0], ratios[1], convert_to_base64=send_image_with_base64)
-                    )
-                img_cntr += 1
+            # If img_base_path is provided, store the image locally
+            # Otherwise, feed the image online
+            if img_base_path:
+                assert not send_image_with_base64, "Base64 encoding is not supported for local images"
+                # If an image doesn't exist, download it
+                img_path = os.path.join(img_base_path, f"{ratios[0]}x{ratios[1]}_{img_cntr + 1}.jpg")
+                if not os.path.exists(img_path):
+                    os.makedirs(img_base_path, exist_ok=True)
+                    logger.info(f"Downloading image to {img_path} ...")
+                    img_url = return_random_image_by_size(ratios[0], ratios[1])
+                    img_data = requests.get(img_url, timeout=60).content
+                    with open(img_path, 'wb') as handler:
+                        handler.write(img_data)
+                media_str = 'file://' + img_path
+            else:
+                # Fetch the image online with the ratios
+                media_bytes: bytes = return_random_image_by_size(
+                    ratios[0], ratios[1], convert_to_base64=send_image_with_base64
+                )
+
+            img_cntr += 1
+            if send_image_with_base64:
+                media = change_image_pixels(media_bytes, iterations=num_imgs_per_req)
+            else:
+                media = [media_str] * num_imgs_per_req
             media_per_request.append(media)
 
         with ThreadPoolExecutor(max_workers=32) as executor:
@@ -447,6 +450,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         "--tokenizer", type=str, default=None, help="Name or path of the tokenizer, if not using the default tokenizer."
     )
 
+    benchmark_parser.add_argument(
+        "--tokenizer-mode", type=str, default=None, help="Specify tokenizer mode. Eg. mistral. Default None"
+    )
+
     benchmark_parser.add_argument("--disable-tqdm", action="store_true", help="Specify to disable tqdm progress bar.")
 
     benchmark_parser.add_argument("--best-of", type=int, default=1, help="Number of best completions to return.")
@@ -628,7 +635,7 @@ def run_main(args: argparse.Namespace) -> None:
             args.num_of_imgs_per_req, args.img_ratios_per_req, args.img_base_path, size, args.send_image_with_base64
         )
         tokenizer_id = args.tokenizer if args.tokenizer else args.model
-        tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(tokenizer_id)
+        tokenizer: PreTrainedTokenizerBase = select_tokenizer(tokenizer_id, args.tokenizer_mode)
         requests_prompts = generate_prompts(args, tokenizer, size)
         min_length = min(len(requests_prompts), len(requests_times))
         requests_prompts = requests_prompts[:min_length]
