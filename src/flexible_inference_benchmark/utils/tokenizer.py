@@ -5,11 +5,13 @@ from transformers import AutoTokenizer  # type: ignore[attr-defined]
 from huggingface_hub import hf_hub_download
 from huggingface_hub import list_repo_files
 from typing import Union, Any
+
 try:
     from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 except ImportError:
     "do not raise ImportError here, as it will be raised in the MistralTokenizerMode class if needed"
     pass
+
 
 @dataclass
 class Encoding:
@@ -94,8 +96,7 @@ def select_tokenizer(tokenizer_id: str, tokenizer_mode: str) -> Any:
             from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
         except ImportError:
             raise ImportError(
-                "the package `mistral-common` is not installed. "
-                "Please install it with `pip install mistral-common`."
+                "the package `mistral-common` is not installed. " "Please install it with `pip install mistral-common`."
             )
         return MistralTokenizerMode(tokenizer_id)
 
