@@ -47,7 +47,7 @@ class MistralTokenizerMode:
         tokenizer = MistralTokenizer.from_file(file)
 
         tokenizer_ = tokenizer.instruct_tokenizer.tokenizer
-        from mistral_common.tokens.tokenizers.tekken import SpecialTokenPolicy, Tekkenizer
+        from mistral_common.tokens.tokenizers.tekken import SpecialTokenPolicy, Tekkenizer  # type: ignore[attr-defined]
 
         self.is_tekken = isinstance(tokenizer_, Tekkenizer)
         from mistral_common.tokens.tokenizers.sentencepiece import SentencePieceTokenizer
@@ -100,4 +100,4 @@ def select_tokenizer(tokenizer_id: str, tokenizer_mode: str) -> Any:
             )
         return MistralTokenizerMode(tokenizer_id)
 
-    return AutoTokenizer.from_pretrained(tokenizer_id)
+    return AutoTokenizer.from_pretrained(tokenizer_id)  # type: ignore[no-untyped-call]
