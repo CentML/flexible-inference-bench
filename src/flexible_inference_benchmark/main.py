@@ -485,6 +485,13 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
 
     benchmark_parser.add_argument("-c", "--config-file", default=None, help="Configuration file.")
 
+    benchmark_parser.add_argument(
+        "--validation-prompt-tokens",
+        type=int,
+        default=128,
+        help="Number of input tokens to use for validation prompts (default: 128).",
+    )
+
     return benchmark_parser
 
 
@@ -600,6 +607,33 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def generate_fixed_validation_prompt(tokenizer: PreTrainedTokenizerBase, target_tokens: int = 128) -> Tuple[str, int, int]:
+    """
+    Generate a fixed-size validation prompt for consistent warmup behavior.
+    
+    Args:
+        tokenizer: The tokenizer to use for token counting
+        target_tokens: Target number of input tokens (default: 128)
+    
+    Returns:
+        Tuple of (prompt_text, input_tokens, output_tokens)
+    """
+    # Simple repeatable text that tokenizes predictably
+    base_text = "The quick brown fox jumps over the lazy dog. "
+    
+    # Estimate tokens and repeat text to reach target
+    sample_tokens = len(tokenizer.encode(base_text))
+    repetitions = max(1, target_tokens // sample_tokens)
+    
+    validation_prompt = base_text * repetitions
+    actual_tokens = len(tokenizer.encode(validation_prompt))
+    
+    # Fixed output length for validation (small but meaningful)
+    output_tokens = 32
+    
+    return validation_prompt, actual_tokens, output_tokens
+
+
 def run_main(args: argparse.Namespace) -> None:
     if args.workload_type:
         workload_type = WORKLOADS_TYPES[args.workload_type]()
@@ -671,9 +705,14 @@ def run_main(args: argparse.Namespace) -> None:
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose
         client.verbose = False
-        logger.info(f"Sending {args.num_validation_reqs} request(s) for validation and warmup.")
+        
+        # Generate fixed-size validation prompt instead of using first request
+        validation_prompt_data = generate_fixed_validation_prompt(tokenizer, args.validation_prompt_tokens)
+        validation_media = requests_media[0][0] if requests_media[0] else []
+        
+        logger.info(f"Sending {args.num_validation_reqs} request(s) for validation and warmup (fixed size: {validation_prompt_data[1]} input tokens).")
         for _ in range(args.num_validation_reqs):
-            validate_endpoint = asyncio.run(client.validate_url_endpoint(requests_prompts[0], requests_media[0][0]))
+            validate_endpoint = asyncio.run(client.validate_url_endpoint(validation_prompt_data, validation_media))
             if not validate_endpoint.success:
                 logger.info(f"{validate_endpoint.error}.\nExiting benchmark ....")
                 sys.exit(1)
