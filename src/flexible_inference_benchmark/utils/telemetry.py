@@ -2,7 +2,7 @@
 import os
 from typing import Optional
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import TracerProvider, NoOpTracerProvider
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, get_aggregated_resources
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -20,6 +20,7 @@ def setup_telemetry() -> None:
     """
     # Check if telemetry is enabled
     if os.getenv("OTEL_ENABLED", "false").lower() != "true":
+        trace.set_tracer_provider(NoOpTracerProvider())
         return
 
     # Get service name from environment or use default
