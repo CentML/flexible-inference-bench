@@ -1,8 +1,8 @@
 # mypy: disable-error-code="attr-defined"
 import os
 from typing import Optional
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider, NoOpTracerProvider
+from opentelemetry import trace, NoOpTracerProvider
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, get_aggregated_resources
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
