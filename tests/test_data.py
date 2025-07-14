@@ -6,6 +6,7 @@ from transformers import AutoTokenizer
 import json
 import flexible_inference_benchmark.engine.data as data
 import flexible_inference_benchmark.engine.distributions as distributions
+from flexible_inference_benchmark.main import parse_args
 from sharegpt_data import SHAREGPT_DATA
 
 @pytest.mark.parametrize("ignore_input_distribution", [True, False])
@@ -57,3 +58,32 @@ def test_sharegpt():
     if os.path.exists("sharegpt_test.json"):
         os.remove("sharegpt_test.json")
     assert random_data.shape == (10,3)
+
+def test_num_trials_cli_argument():
+    """Test that num_trials CLI argument is properly parsed and validated."""
+    import sys
+    
+    # Test default value
+    original_argv = sys.argv
+    try:
+        sys.argv = ['fib', 'benchmark', '--model', 'test', '--base-url', 'http://test']
+        args = parse_args()
+        assert args.num_trials == 10
+        
+        # Test custom value
+        sys.argv = ['fib', 'benchmark', '--model', 'test', '--base-url', 'http://test', '--num-trials', '5']
+        args = parse_args()
+        assert args.num_trials == 5
+        
+        # Test validation - zero value should fail
+        sys.argv = ['fib', 'benchmark', '--model', 'test', '--base-url', 'http://test', '--num-trials', '0']
+        with pytest.raises(SystemExit):
+            parse_args()
+            
+        # Test validation - negative value should fail
+        sys.argv = ['fib', 'benchmark', '--model', 'test', '--base-url', 'http://test', '--num-trials', '-1']
+        with pytest.raises(SystemExit):
+            parse_args()
+            
+    finally:
+        sys.argv = original_argv
