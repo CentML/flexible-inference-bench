@@ -38,6 +38,9 @@ from opentelemetry.trace import SpanKind
 
 logger = logging.getLogger(__name__)
 
+# Default value for num_trials argument
+DEFAULT_NUM_TRIALS = 10
+
 
 def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Any:
 
@@ -198,7 +201,7 @@ def generate_prompts(
             "User selected sharegpt dataset. "
             "Ignoring prompt length distribution and following the prompts from the dataset."
         )
-        if args.num_trials != 10:  # Check if user specified custom value
+        if args.num_trials != DEFAULT_NUM_TRIALS:  # Check if user specified custom value
             logger.warning("num_trials parameter is ignored for ShareGPT dataset as prompts are pre-defined")
         prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
