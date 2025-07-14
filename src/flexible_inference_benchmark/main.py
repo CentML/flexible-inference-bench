@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Default value for num_trials argument
 DEFAULT_NUM_TRIALS = 10
+MAX_TRIALS = 100  # Maximum trials for prompt generation, warn if exceeded
 
 
 def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Any:
@@ -512,7 +513,7 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument(
         "--num-trials",
         type=int,
-        default=10,
+        default=DEFAULT_NUM_TRIALS,
         help="Number of attempts to achieve exact token count when generating prompts (default: 10). "
         "Used for 'random' and 'other' datasets. Higher values improve token count precision "
         "but may slow down prompt generation. Ignored for ShareGPT datasets.",
@@ -633,7 +634,7 @@ def parse_args() -> argparse.Namespace:
         # Validate num_trials parameter
         if args.num_trials <= 0:
             fail("Number of trials must be positive")
-        if args.num_trials > 100:
+        if args.num_trials > MAX_TRIALS:
             logger.warning(f"High num_trials value ({args.num_trials}) may slow down prompt generation")
 
     return args
