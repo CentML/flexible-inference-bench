@@ -38,6 +38,10 @@ from opentelemetry.trace import SpanKind
 
 logger = logging.getLogger(__name__)
 
+# Default value for num_trials argument
+DEFAULT_NUM_TRIALS = 10
+MAX_TRIALS = 100  # Maximum trials for prompt generation, warn if exceeded
+
 
 def return_random_image_by_size(width: int, height: int, convert_to_base64: bool = False) -> Any:
 
@@ -198,6 +202,8 @@ def generate_prompts(
             "User selected sharegpt dataset. "
             "Ignoring prompt length distribution and following the prompts from the dataset."
         )
+        if args.num_trials != DEFAULT_NUM_TRIALS:  # Check if user specified custom value
+            logger.warning("num_trials parameter is ignored for ShareGPT dataset as prompts are pre-defined")
         prompt_cls = ShareGPT(filename, tokenizer, output_token_dist)
     else:
         logger.info(f"User selected {args.dataset_name} dataset. Generating prompt from distributions.")
@@ -216,7 +222,12 @@ def generate_prompts(
         if args.prefix_len:
             prompt_cls = (
                 Random.with_prefix_len(
-                    args.prefix_len, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                    args.prefix_len,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
+                    args.num_trials,
                 )
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_len(
@@ -226,13 +237,19 @@ def generate_prompts(
                     output_token_dist,
                     tokenizer,
                     args.ignore_input_distribution,
+                    args.num_trials,
                 )
             )
         else:
             prefix_text = args.prefix_text or ""
             prompt_cls = (
                 Random.with_prefix_str(
-                    prefix_text, input_prompt_dist, output_token_dist, tokenizer, args.ignore_input_distribution
+                    prefix_text,
+                    input_prompt_dist,
+                    output_token_dist,
+                    tokenizer,
+                    args.ignore_input_distribution,
+                    args.num_trials,
                 )
                 if args.dataset_name == "random"
                 else Textfile.with_prefix_str(
@@ -242,6 +259,7 @@ def generate_prompts(
                     output_token_dist,
                     tokenizer,
                     args.ignore_input_distribution,
+                    args.num_trials,
                 )
             )
 
@@ -492,6 +510,15 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
         help="Number of input tokens to use for validation prompts (default: 128).",
     )
 
+    benchmark_parser.add_argument(
+        "--num-trials",
+        type=int,
+        default=DEFAULT_NUM_TRIALS,
+        help="Number of attempts to achieve exact token count when generating prompts (default: 10). "
+        "Used for 'random' and 'other' datasets. Higher values improve token count precision "
+        "but may slow down prompt generation. Ignored for ShareGPT datasets.",
+    )
+
     return benchmark_parser
 
 
@@ -603,6 +630,12 @@ def parse_args() -> argparse.Namespace:
 
         if args.dataset_path and not args.dataset_name:
             args.dataset_name = "other"
+
+        # Validate num_trials parameter
+        if args.num_trials <= 0:
+            fail("Number of trials must be positive")
+        if args.num_trials > MAX_TRIALS:
+            logger.warning(f"High num_trials value ({args.num_trials}) may slow down prompt generation")
 
     return args
 

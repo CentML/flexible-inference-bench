@@ -69,6 +69,7 @@ def args_configs():
         "temperature": 0.0,
         "top_p": None,
         "top_k": None,
+        "num_trials": 8,
     }
 
     sharegpt_sample_data_path = "tests/data/sharegpt_sample_test_data.json"
