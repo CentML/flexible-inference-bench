@@ -475,7 +475,10 @@ async def async_request_openai_chat_completions(
             if verbose:
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
-                with tracer.start_as_current_span("http_request"):
+                tracer_http_request = (
+                    tracer.start_as_current_span("http_request") if telemetry_enabled else nullcontext()
+                )
+                with tracer_http_request:
                     async with session.post(
                         url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                     ) as response:
@@ -566,7 +569,8 @@ async def async_request_openai_chat_completions(
                     span.set_attribute("fib.error", output.error)
 
             if pbar:
-                with tracer.start_as_current_span("progress_update"):
+                pbar_span = tracer.start_as_current_span("progress_update") if telemetry_enabled else nullcontext()
+                with pbar_span:
                     pbar.update(1)
 
             return output
