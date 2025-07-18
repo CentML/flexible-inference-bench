@@ -7,6 +7,7 @@ import itertools
 import sys
 import os
 import time
+from contextlib import nullcontext
 from typing import List, Any, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 import base64
@@ -646,24 +647,31 @@ def run_main(args: argparse.Namespace) -> None:
         random.seed(args.seed)
 
     # Set up telemetry
+    telemetry_enabled = os.getenv("OTEL_ENABLED", "false").lower() == "true"
     setup_telemetry()
     run_id = str(uuid.uuid4())
 
     # Create a top-level span for the entire experiment that is not a parent span
     tracer = trace.get_tracer(__name__)
-    with tracer.start_span(
-        "experiment",
-        kind=SpanKind.INTERNAL,
-        attributes={
-            "fib.run.id": run_id,
-            "fib.command": json.dumps(
-                {
-                    "subcommand": args.subcommand,
-                    "args": {k: v for k, v in vars(args).items() if k not in ['subcommand'] and v is not None},
-                }
-            ),
-        },
-    ) as span:
+    otel_span = (
+        tracer.start_span(
+            "experiment",
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "fib.run.id": run_id,
+                "fib.command": json.dumps(
+                    {
+                        "subcommand": args.subcommand,
+                        "args": {k: v for k, v in vars(args).items() if k not in ['subcommand'] and v is not None},
+                    }
+                ),
+            },
+        )
+        if telemetry_enabled
+        else nullcontext()
+    )
+
+    with otel_span as span:
         requests_times = generate_request_times(args)
         size = len(requests_times)
         requests_media = generate_request_media(
@@ -757,7 +765,8 @@ def run_main(args: argparse.Namespace) -> None:
                 output["inputs"], output["outputs"], output["time"], tokenizer, output["stream"]
             )
             # Add metrics as a single JSON blob attribute
-            span.set_attribute("fib.metrics", json.dumps(metrics))
+            if span:
+                span.set_attribute("fib.metrics", json.dumps(metrics))
 
             if args.output_file:
                 filename = args.output_file
