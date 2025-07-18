@@ -454,7 +454,7 @@ async def async_request_openai_chat_completions(
                 "max_tokens": request_func_input.output_len,
                 "stream": request_func_input.stream,
                 "ignore_eos": request_func_input.ignore_eos,
-                }
+            }
             if request_func_input.stream:
                 payload["stream_options"] = {"include_usage": True}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
@@ -505,11 +505,11 @@ async def async_request_openai_chat_completions(
                                         delta = None
                                         content = None
                                         reasoning_content = None
-                                        if request_func_input.stream and len(data["choices"]) > 0:  
-                                            delta = data["choices"][0]["delta"] 
-                                            content = delta.get("content", None) 
-                                            reasoning_content = delta.get("reasoning_content", None) 
-                                            
+                                        if request_func_input.stream and len(data["choices"]) > 0:
+                                            delta = data["choices"][0]["delta"]
+                                            content = delta.get("content", None)
+                                            reasoning_content = delta.get("reasoning_content", None)
+
                                         if (content is not None or reasoning_content is not None) and not (
                                             ttft == 0.0 and (content == '' or reasoning_content == '')
                                         ):
