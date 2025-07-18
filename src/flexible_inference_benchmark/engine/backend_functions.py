@@ -452,10 +452,11 @@ async def async_request_openai_chat_completions(
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
                 "max_tokens": request_func_input.output_len,
-                "stream": True,
+                "stream": request_func_input.stream,
                 "ignore_eos": request_func_input.ignore_eos,
-                "stream_options": {"include_usage": True},
-            }
+                }
+            if request_func_input.stream:
+                payload["stream_options"] = {"include_usage": True}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = True
@@ -501,12 +502,14 @@ async def async_request_openai_chat_completions(
                                     else:
                                         timestamp = time.perf_counter()
                                         data = json.loads(chunk)
-
-                                        delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
-                                        content = delta.get("content", None) if delta is not None else None
-                                        reasoning_content = (
-                                            delta.get("reasoning_content", None) if delta is not None else None
-                                        )
+                                        delta = None
+                                        content = None
+                                        reasoning_content = None
+                                        if request_func_input.stream and len(data["choices"]) > 0:  
+                                            delta = data["choices"][0]["delta"] 
+                                            content = delta.get("content", None) 
+                                            reasoning_content = delta.get("reasoning_content", None) 
+                                            
                                         if (content is not None or reasoning_content is not None) and not (
                                             ttft == 0.0 and (content == '' or reasoning_content == '')
                                         ):
