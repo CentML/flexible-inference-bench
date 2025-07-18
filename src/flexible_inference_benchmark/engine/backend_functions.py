@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 from typing import List, Optional, Dict, Any
+from contextlib import nullcontext
 from pydantic import BaseModel, Field
 import aiohttp
 from tqdm.asyncio import tqdm
@@ -429,16 +430,22 @@ async def async_request_openai_chat_completions(
     for media_item in request_func_input.media:
         content_body.append({"type": "image_url", "image_url": {"url": media_item}})
 
-    with tracer.start_as_current_span(
-        f"request_{idx}",
-        attributes=create_span_attributes(
-            prompt_tokens=request_func_input.prompt_len,
-            image_count=len(request_func_input.media) if request_func_input.media else 0,
-            image_sizes=[len(img) for img in request_func_input.media] if request_func_input.media else [],
-            response_tokens=0,  # Will be updated after response
-            run_id=request_func_input.run_id or "unknown",  # Provide default value for None
-        ),
-    ) as span:
+    telemetry_enabled = os.getenv("OTEL_ENABLED", "false").lower() == "true"
+    otel_span = (
+        tracer.start_as_current_span(
+            f"request_{idx}",
+            attributes=create_span_attributes(
+                prompt_tokens=request_func_input.prompt_len,
+                image_count=len(request_func_input.media) if request_func_input.media else 0,
+                image_sizes=[len(img) for img in request_func_input.media] if request_func_input.media else [],
+                response_tokens=0,  # Will be updated after response
+                run_id=request_func_input.run_id or "unknown",  # Provide default value for None
+            ),
+        )
+        if telemetry_enabled
+        else nullcontext()
+    )
+    with otel_span as span:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
             payload = {
@@ -468,13 +475,21 @@ async def async_request_openai_chat_completions(
             if verbose:
                 print_verbose(idx, request_func_input, st, 0, 0, True)
             try:
-                with tracer.start_as_current_span("http_request"):
+                tracer_http_request = (
+                    tracer.start_as_current_span("http_request") if telemetry_enabled else nullcontext()
+                )
+                with tracer_http_request:
                     async with session.post(
                         url=api_url, json=payload, headers=headers, ssl=request_func_input.ssl
                     ) as response:
                         if response.status == 200:
                             latency = 0.0
-                            with tracer.start_as_current_span("response_processing") as process_span:
+                            response_success_span = (
+                                tracer.start_as_current_span("response_processing")
+                                if telemetry_enabled
+                                else nullcontext()
+                            )
+                            with response_success_span as process_span:
                                 async for chunk_bytes in response.content:
                                     chunk_bytes = chunk_bytes.strip()
                                     if not chunk_bytes:
@@ -498,13 +513,15 @@ async def async_request_openai_chat_completions(
                                             if ttft == 0.0:
                                                 ttft = time.perf_counter() - st
                                                 output.ttft = ttft
-                                                process_span.set_attribute("fib.time_to_first_token", ttft)
+                                                if process_span:
+                                                    process_span.set_attribute("fib.time_to_first_token", ttft)
 
                                             else:
                                                 output.itl.append(timestamp - most_recent_timestamp)
-                                                process_span.set_attribute(
-                                                    "fib.inter_token_latency", timestamp - most_recent_timestamp
-                                                )
+                                                if process_span:
+                                                    process_span.set_attribute(
+                                                        "fib.inter_token_latency", timestamp - most_recent_timestamp
+                                                    )
                                             if content:
                                                 generated_text += content
                                             elif reasoning_content:
@@ -514,37 +531,46 @@ async def async_request_openai_chat_completions(
                                         if "usage" in data:
                                             if data["usage"]["completion_tokens"]:
                                                 output.output_len = int(data["usage"]["completion_tokens"])
-                                                process_span.set_attribute("fib.completion_tokens", output.output_len)
+                                                if process_span:
+                                                    process_span.set_attribute(
+                                                        "fib.completion_tokens", output.output_len
+                                                    )
                                             if data["usage"]["prompt_tokens"]:
                                                 output.prompt_len = int(data["usage"]["prompt_tokens"])
-                                                process_span.set_attribute("fib.prompt_tokens", output.prompt_len)
+                                                if process_span:
+                                                    process_span.set_attribute("fib.prompt_tokens", output.prompt_len)
 
                             output.generated_text = generated_text
                             output.success = True
                             output.latency = latency
-                            span.set_attribute("fib.total_latency", latency)
-                            span.set_attribute("fib.total_tokens", len(generated_text))
+                            if span:
+                                span.set_attribute("fib.total_latency", latency)
+                                span.set_attribute("fib.total_tokens", len(generated_text))
 
                             if verbose:
                                 print_verbose(idx, request_func_input, 0, most_recent_timestamp, output.latency, False)
                         else:
                             output.error = response.reason or ""
                             output.success = False
-                            span.set_attribute("fib.error", output.error)
+                            if span:
+                                span.set_attribute("fib.error", output.error)
 
             except aiohttp.ClientConnectorError:
                 output.success = False
                 output.error = "connection error, please verify the server is running"
-                span.set_attribute("fib.error", output.error)
+                if span:
+                    span.set_attribute("fib.error", output.error)
 
             except Exception:  # pylint: disable=broad-except
                 output.success = False
                 exc_info = sys.exc_info()
                 output.error = "".join(traceback.format_exception(*exc_info))
-                span.set_attribute("fib.error", output.error)
+                if span:
+                    span.set_attribute("fib.error", output.error)
 
             if pbar:
-                with tracer.start_as_current_span("progress_update"):
+                pbar_span = tracer.start_as_current_span("progress_update") if telemetry_enabled else nullcontext()
+                with pbar_span:
                     pbar.update(1)
 
             return output
