@@ -12,9 +12,11 @@ from typing import List, Any, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 import base64
 import uuid
+import io
 import requests
 from tqdm import tqdm
 import numpy as np
+from PIL import Image
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase  # type: ignore[attr-defined]
 from flexible_inference_benchmark.engine.distributions import DISTRIBUTION_CLASSES, Distribution, Same, UniformInt
 from flexible_inference_benchmark.utils.utils import (
@@ -48,24 +50,14 @@ def return_random_image_by_size(width: int, height: int, convert_to_base64: bool
 
     image_url = f"https://picsum.photos/{width}/{height}"
     if convert_to_base64:
-        max_retries = 5
-        data_bytes = None
-        for _ in range(max_retries):
-            try:
-                time.sleep(1)
-                response = requests.get(image_url, timeout=10)
-                response.raise_for_status()
-                data_bytes = base64.b64encode(response.content)
-                break
-            except requests.HTTPError as e:
-                logger.warning(f"Failed to fetch image from {image_url}: {e}")
-
-        if data_bytes is None:
-            raise ValueError(
-                f"Failed to fetch image from {image_url} after {max_retries} retries. "
-                "Please check the URL or your internet connection."
-            )
-        return data_bytes
+        image_size = (width, height)
+        channels = 3
+        random_bytes = os.urandom(width * height * channels)
+        random_image = Image.frombytes('RGB', image_size, random_bytes)
+        buffered = io.BytesIO()
+        random_image.save(buffered, format="JPEG")
+        base64_encoded_image = base64.b64encode(buffered.getvalue())
+        return base64_encoded_image
     else:
         return image_url
 
