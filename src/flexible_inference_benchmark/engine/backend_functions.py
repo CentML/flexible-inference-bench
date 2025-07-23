@@ -455,6 +455,7 @@ async def async_request_openai_chat_completions(
                 "stream": True,
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
+                "response_format": {"type": "json_object"}
             }
             apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
