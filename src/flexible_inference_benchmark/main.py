@@ -475,6 +475,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--disable-thinking", action="store_true", help="Disable thinking mode in chat templates."
+    )
+
+    benchmark_parser.add_argument(
         "--output-file",
         type=str,
         default='output-file.json',
@@ -741,6 +745,7 @@ def run_main(args: argparse.Namespace) -> None:
             args.top_k,
             run_id=run_id,
             json_response=args.json_response,
+            disable_thinking=args.disable_thinking,
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose

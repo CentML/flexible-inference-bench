@@ -44,6 +44,7 @@ class RequestFuncInput(BaseModel):
     top_k: Optional[int] = None
     run_id: Optional[str] = None
     json_response: bool = False
+    disable_thinking: bool = False
 
 
 class RequestFuncOutput(BaseModel):
@@ -475,6 +476,9 @@ async def async_request_openai_chat_completions(
             # Add JSON response format if flag is enabled
             if request_func_input.json_response:
                 payload["response_format"] = {"type": "json_object"}
+
+            # Add thinking control if flag is enabled
+            if request_func_input.disable_thinking:
                 payload["chat_template_kwargs"] = {"enable_thinking": False}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
