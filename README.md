@@ -59,6 +59,8 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--disable-tqdm` | Specify to disable tqdm progress bar. |
 | `--best-of` | Number of best completions to return. |
 | `--use-beam-search` | Use beam search for completions. |
+| `--json-response` | Request responses in JSON format from the API. |
+| `--disable-thinking` | Disable thinking mode in chat templates. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
 | `--profile` | Use Torch Profiler. The endpoint must be launched with VLLM_TORCH_PROFILER_DIR to enable profiler. |

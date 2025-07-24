@@ -43,6 +43,8 @@ class RequestFuncInput(BaseModel):
     top_p: Optional[float] = None
     top_k: Optional[int] = None
     run_id: Optional[str] = None
+    json_response: bool = False
+    disable_thinking: bool = False
 
 
 class RequestFuncOutput(BaseModel):
@@ -448,6 +450,21 @@ async def async_request_openai_chat_completions(
     with otel_span as span:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
+
+            # Apply JSON response formatting if flag is enabled
+            if request_func_input.json_response:
+                append_msg = (
+                    "\nPlease send your response as a JSON object. "
+                    "Follow this schema: {'assistant_response': 'your full, detailed response here "
+                    "Do not include any other text or formatting. "
+                    "Only return the JSON object without any additional text or explanation."
+                    "DO NOT OUTPUT THE } character."
+                )
+                if isinstance(content_body, str):
+                    content_body += append_msg
+                else:
+                    content_body[-1]["text"] += append_msg
+
             payload = {
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
@@ -456,6 +473,14 @@ async def async_request_openai_chat_completions(
                 "ignore_eos": request_func_input.ignore_eos,
                 "stream_options": {"include_usage": True},
             }
+
+            # Add JSON response format if flag is enabled
+            if request_func_input.json_response:
+                payload["response_format"] = {"type": "json_object"}
+
+            # Add thinking control if flag is enabled
+            if request_func_input.disable_thinking:
+                payload["chat_template_kwargs"] = {"enable_thinking": False}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = True
