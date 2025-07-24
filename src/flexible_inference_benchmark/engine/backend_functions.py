@@ -455,9 +455,10 @@ async def async_request_openai_chat_completions(
             if request_func_input.json_response:
                 append_msg = (
                     "\nPlease send your response as a JSON object. "
-                    "Follow this schema: {'assistant_response': 'your full, detailed response here'}. "
+                    "Follow this schema: {'assistant_response': 'your full, detailed response here "
                     "Do not include any other text or formatting. "
                     "Only return the JSON object without any additional text or explanation."
+                    "DO NOT OUTPUT THE } character."
                 )
                 if isinstance(content_body, str):
                     content_body += append_msg
