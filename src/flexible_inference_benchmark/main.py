@@ -471,6 +471,10 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
     benchmark_parser.add_argument(
+        "--json-response", action="store_true", help="Request responses in JSON format from the API."
+    )
+
+    benchmark_parser.add_argument(
         "--output-file",
         type=str,
         default='output-file.json',
@@ -736,6 +740,7 @@ def run_main(args: argparse.Namespace) -> None:
             args.top_p,
             args.top_k,
             run_id=run_id,
+            json_response=args.json_response,
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose

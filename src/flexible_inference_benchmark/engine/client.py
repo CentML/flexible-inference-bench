@@ -44,6 +44,7 @@ class Client:
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
         run_id: Optional[str] = None,
+        json_response: bool = False,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -66,6 +67,7 @@ class Client:
         self.top_p = top_p
         self.top_k = top_k
         self.run_id = run_id or str(uuid.uuid4())
+        self.json_response = json_response
 
     @property
     def request_func(
@@ -178,6 +180,7 @@ class Client:
                 top_p=self.top_p,
                 top_k=self.top_k,
                 run_id=self.run_id,
+                json_response=self.json_response,
             )
             for (data_sample, media_sample) in zip(data, requests_media)
         ]
