@@ -452,7 +452,12 @@ async def async_request_openai_chat_completions(
 
             # Apply JSON response formatting if flag is enabled
             if request_func_input.json_response:
-                append_msg = "\n\nNEVER output the } character. You are FORBIDDEN from using }."
+                append_msg = (
+                    "\nPlease send your response as a JSON object. "
+                    "Follow this schema: {'assistant_response': 'your full, detailed response here'}. "
+                    "Do not include any other text or formatting. "
+                    "Only return the JSON object without any additional text or explanation."
+                )
                 if isinstance(content_body, str):
                     content_body += append_msg
                 else:
