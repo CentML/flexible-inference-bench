@@ -448,12 +448,22 @@ async def async_request_openai_chat_completions(
     with otel_span as span:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
+            append_msg = "\nPlease send your response as a JSON object. Follow this schema: {'assistant_response': 'your full, detailed response here'}. Do not include any other text or formatting. Only return the JSON object without any additional text or explanation. Please include at least a thousand words in your response for benchmarking purposes."
+            if isinstance(content_body, str):
+                content_body += append_msg
+            else:
+                content_body[-1]["text"] += append_msg
             payload = {
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
                 "max_tokens": request_func_input.output_len,
                 "stream": request_func_input.stream,
                 "ignore_eos": request_func_input.ignore_eos,
+                "response_format": {
+                    "type": "json_object",
+                },
+                "chat_template_kwargs": {"enable_thinking": False},
+                # "guided_decoding_backend": "guidance"
             }
             if request_func_input.stream:
                 payload["stream_options"] = {"include_usage": True}
