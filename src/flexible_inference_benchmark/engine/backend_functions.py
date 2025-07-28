@@ -531,14 +531,14 @@ async def async_request_openai_chat_completions(
                                                 generated_text += reasoning_content
                                             most_recent_timestamp = timestamp
 
-                                        if "usage" in data:
-                                            if data["usage"]["completion_tokens"]:
+                                        if "usage" in data and data["usage"] is not None:
+                                            if data["usage"].get("completion_tokens"):
                                                 output.output_len = int(data["usage"]["completion_tokens"])
                                                 if process_span:
                                                     process_span.set_attribute(
                                                         "fib.completion_tokens", output.output_len
                                                     )
-                                            if data["usage"]["prompt_tokens"]:
+                                            if data["usage"].get("prompt_tokens"):
                                                 output.prompt_len = int(data["usage"]["prompt_tokens"])
                                                 if process_span:
                                                     process_span.set_attribute("fib.prompt_tokens", output.prompt_len)
