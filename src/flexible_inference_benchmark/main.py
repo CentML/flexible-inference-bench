@@ -484,18 +484,17 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--json-schema",
+        type=str,
+        help="JSON schema for structured output validation. "
+        "Supports inline JSON string or file input with @file syntax (e.g., --json-schema @schema.json).",
+    )
+
+    benchmark_parser.add_argument(
         "--include-schema-in-prompt",
         action="store_true",
         help="Include the JSON schema in the prompt text for better LLM comprehension. "
-        "Requires either --json-schema-file or --json-schema-inline to be specified.",
-    )
-
-    json_group = benchmark_parser.add_mutually_exclusive_group()
-    json_group.add_argument(
-        "--json-schema-file", type=str, help="Path to JSON schema file for structured output validation."
-    )
-    json_group.add_argument(
-        "--json-schema-inline", type=str, help="Inline JSON schema string for structured output validation."
+        "Requires --json-schema to be specified.",
     )
 
     benchmark_parser.add_argument(
@@ -585,32 +584,40 @@ def validate_json_args(args: argparse.Namespace) -> None:
 
     # Process JSON schema if provided
     json_schema = None
-    if args.json_schema_file:
-        try:
-            with open(args.json_schema_file, 'r') as f:
-                json_schema = json.load(f)
-            # Basic validation that it's a valid JSON schema structure
-            if not isinstance(json_schema, dict):
-                logger.error("JSON schema must be a JSON object")
+    original_json_schema = getattr(args, 'json_schema', None)
+    if args.json_schema:
+        if args.json_schema.startswith("@"):
+            # File-based schema loading
+            schema_file_path = args.json_schema[1:]  # Remove @ prefix
+            try:
+                with open(schema_file_path, 'r') as f:
+                    json_schema = json.load(f)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info(f"Loaded JSON schema from {schema_file_path}")
+            except FileNotFoundError:
+                logger.error(f"JSON schema file '{schema_file_path}' does not exist")
                 sys.exit(1)
-            logger.info(f"Loaded JSON schema from {args.json_schema_file}")
-        except (OSError, PermissionError) as e:
-            logger.error(f"Failed to load JSON schema file: {e}")
-            sys.exit(1)
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in schema file '{args.json_schema_file}': {e}")
-            sys.exit(1)
-    elif args.json_schema_inline:
-        try:
-            json_schema = json.loads(args.json_schema_inline)
-            # Basic validation that it's a valid JSON schema structure
-            if not isinstance(json_schema, dict):
-                logger.error("JSON schema must be a JSON object")
+            except (OSError, PermissionError) as e:
+                logger.error(f"Failed to load JSON schema file '{schema_file_path}': {e}")
                 sys.exit(1)
-            logger.info("Loaded inline JSON schema")
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in inline schema: {e}")
-            sys.exit(1)
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in schema file '{schema_file_path}': {e}")
+                sys.exit(1)
+        else:
+            # Inline schema
+            try:
+                json_schema = json.loads(args.json_schema)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info("Loaded inline JSON schema")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in inline schema: {e}")
+                sys.exit(1)
 
     # Store processed schema back to args
     args.json_schema = json_schema
@@ -618,26 +625,22 @@ def validate_json_args(args: argparse.Namespace) -> None:
     # Comprehensive input validation
     # 1. Check for contradictory flag combinations
     if json_schema and args.json_response:
-        logger.error("Cannot use both --json-response and JSON schema options together")
-        logger.error("Suggestion: Choose either --json-response or --json-schema-file/--json-schema-inline")
-        sys.exit(2)
-
-    if args.json_schema_file and args.json_schema_inline:
-        logger.error("Cannot use --json-schema-file and --json-schema-inline together")
-        logger.error("Suggestion: Choose either file-based or inline schema input")
+        logger.error("Cannot use both --json-response and --json-schema together")
+        logger.error("Suggestion: Choose either --json-response or --json-schema")
         sys.exit(2)
 
     # 2. Check for schema-dependent flags without schema
     if hasattr(args, 'include_schema_in_prompt') and args.include_schema_in_prompt:
         if not json_schema:
             logger.error("--include-schema-in-prompt requires a JSON schema")
-            logger.error("Suggestion: Add --json-schema-file <file> or --json-schema-inline <schema>")
+            logger.error("Suggestion: Add --json-schema <schema> or --json-schema @file")
             sys.exit(3)
 
     # 3. File size warnings (optional)
-    if args.json_schema_file:
+    if original_json_schema and original_json_schema.startswith("@"):
+        schema_file_path = original_json_schema[1:]
         try:
-            file_size = os.path.getsize(args.json_schema_file)
+            file_size = os.path.getsize(schema_file_path)
             if file_size > 1024 * 1024:  # 1MB
                 logger.warning(f"Large schema file ({file_size / (1024*1024):.1f}MB) may impact performance")
         except OSError:

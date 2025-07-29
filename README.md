@@ -61,9 +61,8 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--use-beam-search` | Use beam search for completions. |
 | `--json-response` | Request responses in JSON object format from the API. |
 | `--json-prompt` | Custom prompt to append for JSON modes. Supports inline text or file input with `@file` syntax (e.g., `--json-prompt @prompt.txt`). Always appended when specified. |
-| `--json-schema-file` | Path to JSON schema file for structured output validation. Uses OpenAI/vLLM structured outputs. |
-| `--json-schema-inline` | Inline JSON schema string for structured output validation. Alternative to `--json-schema-file`. |
-| `--include-schema-in-prompt` | Include the JSON schema in the prompt text for better LLM comprehension. Requires a JSON schema to be specified. |
+| `--json-schema` | JSON schema for structured output validation. Supports inline JSON string or file input with `@file` syntax (e.g., `--json-schema @schema.json`). |
+| `--include-schema-in-prompt` | Include the JSON schema in the prompt text for better LLM comprehension. Requires `--json-schema` to be specified. |
 | `--disable-thinking` | Disable thinking mode in chat templates. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
@@ -84,10 +83,10 @@ For structured JSON outputs with schema validation:
 
 ```bash
 # File-based schema (see tests/data/simple_schema.json for example)
-fib benchmark --json-schema-file path/to/schema.json -n 20 -rps 10
+fib benchmark --json-schema @tests/data/simple_schema.json -n 20 -rps 10
 
 # Inline schema  
-fib benchmark --json-schema-inline '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10
+fib benchmark --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10
 ```
 
 In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
