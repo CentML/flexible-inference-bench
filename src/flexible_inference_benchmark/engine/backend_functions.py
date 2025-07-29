@@ -469,9 +469,8 @@ async def async_request_openai_chat_completions(
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
                 "max_tokens": request_func_input.output_len,
-                "stream": True,
+                "stream": request_func_input.stream,
                 "ignore_eos": request_func_input.ignore_eos,
-                "stream_options": {"include_usage": True},
             }
 
             # Add JSON response format if flag is enabled
@@ -481,6 +480,9 @@ async def async_request_openai_chat_completions(
             # Add thinking control if flag is enabled
             if request_func_input.disable_thinking:
                 payload["chat_template_kwargs"] = {"enable_thinking": False}
+
+            if request_func_input.stream:
+                payload["stream_options"] = {"include_usage": True}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
             if request_func_input.logprobs is not None:
                 payload["logprobs"] = True
@@ -526,12 +528,14 @@ async def async_request_openai_chat_completions(
                                     else:
                                         timestamp = time.perf_counter()
                                         data = json.loads(chunk)
+                                        delta = None
+                                        content = None
+                                        reasoning_content = None
+                                        if request_func_input.stream and len(data["choices"]) > 0:
+                                            delta = data["choices"][0]["delta"]
+                                            content = delta.get("content", None)
+                                            reasoning_content = delta.get("reasoning_content", None)
 
-                                        delta = data["choices"][0]["delta"] if len(data["choices"]) > 0 else None
-                                        content = delta.get("content", None) if delta is not None else None
-                                        reasoning_content = (
-                                            delta.get("reasoning_content", None) if delta is not None else None
-                                        )
                                         if (content is not None or reasoning_content is not None) and not (
                                             ttft == 0.0 and (content == '' or reasoning_content == '')
                                         ):
@@ -553,14 +557,14 @@ async def async_request_openai_chat_completions(
                                                 generated_text += reasoning_content
                                             most_recent_timestamp = timestamp
 
-                                        if "usage" in data:
-                                            if data["usage"]["completion_tokens"]:
+                                        if "usage" in data and data["usage"] is not None:
+                                            if data["usage"].get("completion_tokens"):
                                                 output.output_len = int(data["usage"]["completion_tokens"])
                                                 if process_span:
                                                     process_span.set_attribute(
                                                         "fib.completion_tokens", output.output_len
                                                     )
-                                            if data["usage"]["prompt_tokens"]:
+                                            if data["usage"].get("prompt_tokens"):
                                                 output.prompt_len = int(data["usage"]["prompt_tokens"])
                                                 if process_span:
                                                     process_span.set_attribute("fib.prompt_tokens", output.prompt_len)
