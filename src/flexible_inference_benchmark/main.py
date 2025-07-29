@@ -767,7 +767,7 @@ def run_main(args: argparse.Namespace) -> None:
                 except UnicodeDecodeError as e:
                     logger.error(f"Cannot read prompt file '{prompt_file_path}': {e}")
                     sys.exit(1)
-                except Exception as e:
+                except (OSError, PermissionError) as e:
                     logger.error(f"Failed to load prompt file '{prompt_file_path}': {e}")
                     sys.exit(1)
             else:
@@ -787,8 +787,11 @@ def run_main(args: argparse.Namespace) -> None:
                     logger.error("JSON schema must be a JSON object")
                     sys.exit(1)
                 logger.info(f"Loaded JSON schema from {args.json_schema_file}")
-            except Exception as e:
+            except (OSError, PermissionError) as e:
                 logger.error(f"Failed to load JSON schema file: {e}")
+                sys.exit(1)
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in schema file '{args.json_schema_file}': {e}")
                 sys.exit(1)
         elif args.json_schema_inline:
             try:
@@ -798,8 +801,8 @@ def run_main(args: argparse.Namespace) -> None:
                     logger.error("JSON schema must be a JSON object")
                     sys.exit(1)
                 logger.info("Loaded inline JSON schema")
-            except Exception as e:
-                logger.error(f"Failed to parse inline JSON schema: {e}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in inline schema: {e}")
                 sys.exit(1)
 
         # Comprehensive input validation
