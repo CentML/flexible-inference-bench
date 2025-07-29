@@ -44,9 +44,10 @@ class RequestFuncInput(BaseModel):
     top_k: Optional[int] = None
     run_id: Optional[str] = None
     json_response: bool = False
-    json_response_prompt: str = ""
+    custom_prompt: str = ""
     disable_thinking: bool = False
     json_schema: Optional[Dict[str, Any]] = None
+    include_schema_in_prompt: bool = False
 
 
 class RequestFuncOutput(BaseModel):
@@ -453,27 +454,36 @@ async def async_request_openai_chat_completions(
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
 
-            # Apply JSON response formatting if flag is enabled
-            if request_func_input.json_response or request_func_input.json_schema:
-                if request_func_input.json_response_prompt:
-                    append_msg = request_func_input.json_response_prompt
-                elif request_func_input.json_response and not request_func_input.json_schema:
-                    # Default prompt for basic JSON response mode
-                    append_msg = (
-                        "\nPlease send your response as a JSON object. "
-                        "Follow this schema: {'assistant_response': 'your full, detailed response here "
-                        "Do not include any other text or formatting. "
-                        "Only return the JSON object without any additional text or explanation."
-                        "DO NOT OUTPUT THE } character."
-                    )
-                else:
-                    append_msg = None
-                
+            # Apply custom prompt and schema formatting
+            append_msg = ""
+
+            # 1. Always append custom prompt when provided
+            if request_func_input.custom_prompt:
+                append_msg += request_func_input.custom_prompt
+
+            # 2. Add default JSON prompt for basic JSON response mode (no schema)
+            elif request_func_input.json_response and not request_func_input.json_schema:
+                append_msg += (
+                    "\nPlease send your response as a JSON object. "
+                    "Follow this schema: {'assistant_response': 'your full, detailed response here'} "
+                    "Do not include any other text or formatting. "
+                    "Only return the JSON object without any additional text or explanation."
+                )
+
+            # 3. Include schema in prompt if requested
+            if request_func_input.include_schema_in_prompt and request_func_input.json_schema:
                 if append_msg:
-                    if isinstance(content_body, str):
-                        content_body += append_msg
-                    else:
-                        content_body[-1]["text"] += append_msg
+                    append_msg += "\n\n"
+                append_msg += "Please follow this JSON schema for your response:\n```json\n"
+                append_msg += json.dumps(request_func_input.json_schema, indent=2)
+                append_msg += "\n```"
+
+            # Apply the combined message to content
+            if append_msg:
+                if isinstance(content_body, str):
+                    content_body += append_msg
+                else:
+                    content_body[-1]["text"] += append_msg
 
             payload = {
                 "model": request_func_input.model,
@@ -487,11 +497,7 @@ async def async_request_openai_chat_completions(
             if request_func_input.json_schema:
                 payload["response_format"] = {
                     "type": "json_schema",
-                    "json_schema": {
-                        "name": "response",
-                        "schema": request_func_input.json_schema,
-                        "strict": True
-                    }
+                    "json_schema": {"name": "response", "schema": request_func_input.json_schema, "strict": True},
                 }
             elif request_func_input.json_response:
                 payload["response_format"] = {"type": "json_object"}
@@ -550,7 +556,7 @@ async def async_request_openai_chat_completions(
                                         delta = None
                                         content = None
                                         reasoning_content = None
-                                        if request_func_input.stream and len(data["choices"]) > 0:
+                                        if request_func_input.stream and "choices" in data and len(data["choices"]) > 0:
                                             delta = data["choices"][0]["delta"]
                                             content = delta.get("content", None)
                                             reasoning_content = delta.get("reasoning_content", None)

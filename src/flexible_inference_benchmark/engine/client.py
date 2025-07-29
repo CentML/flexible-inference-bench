@@ -45,9 +45,10 @@ class Client:
         top_k: Optional[int] = None,
         run_id: Optional[str] = None,
         json_response: bool = False,
-        json_response_prompt: str = "",
+        custom_prompt: str = "",
         disable_thinking: bool = False,
         json_schema: Optional[Dict[str, Any]] = None,
+        include_schema_in_prompt: bool = False,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -71,9 +72,10 @@ class Client:
         self.top_k = top_k
         self.run_id = run_id or str(uuid.uuid4())
         self.json_response = json_response
-        self.json_response_prompt = json_response_prompt
+        self.custom_prompt = custom_prompt
         self.disable_thinking = disable_thinking
         self.json_schema = json_schema
+        self.include_schema_in_prompt = include_schema_in_prompt
 
     @property
     def request_func(
@@ -187,9 +189,10 @@ class Client:
                 top_k=self.top_k,
                 run_id=self.run_id,
                 json_response=self.json_response,
-                json_response_prompt=self.json_response_prompt,
+                custom_prompt=self.custom_prompt,
                 disable_thinking=self.disable_thinking,
                 json_schema=self.json_schema,
+                include_schema_in_prompt=self.include_schema_in_prompt,
             )
             for (data_sample, media_sample) in zip(data, requests_media)
         ]
@@ -235,9 +238,10 @@ class Client:
             top_k=self.top_k,
             run_id=self.run_id,
             json_response=self.json_response,
-            json_response_prompt=self.json_response_prompt,
+            custom_prompt=self.custom_prompt,
             disable_thinking=self.disable_thinking,
             json_schema=self.json_schema,
+            include_schema_in_prompt=self.include_schema_in_prompt,
         )
         return await self.send_request(-1, data, 0, None, None)
 
@@ -261,9 +265,10 @@ class Client:
             top_k=self.top_k,
             run_id=self.run_id,
             json_response=self.json_response,
-            json_response_prompt=self.json_response_prompt,
+            custom_prompt=self.custom_prompt,
             disable_thinking=self.disable_thinking,
             json_schema=self.json_schema,
+            include_schema_in_prompt=self.include_schema_in_prompt,
         )
         return await self.signal_profiler(0, data, 0, None, None)
 
@@ -287,8 +292,9 @@ class Client:
             top_k=self.top_k,
             run_id=self.run_id,
             json_response=self.json_response,
-            json_response_prompt=self.json_response_prompt,
+            custom_prompt=self.custom_prompt,
             disable_thinking=self.disable_thinking,
             json_schema=self.json_schema,
+            include_schema_in_prompt=self.include_schema_in_prompt,
         )
         return await self.signal_profiler(0, data, 0, None, None)

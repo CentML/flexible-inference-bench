@@ -475,24 +475,27 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
-        "--json-response-prompt", 
-        type=str, 
+        "--json-prompt",
+        type=str,
         default="",
-        help="Custom prompt message to append when using --json-response or JSON schema. "
-             "For --json-response without this flag, a default JSON formatting prompt is used. "
-             "For JSON schema, this adds additional context to the structured output request."
+        help="Custom prompt message to append when using JSON modes. "
+        "Supports inline text or file input with @file syntax (e.g., --json-prompt @prompt.txt). "
+        "Always appended when specified, regardless of JSON mode type.",
+    )
+
+    benchmark_parser.add_argument(
+        "--include-schema-in-prompt",
+        action="store_true",
+        help="Include the JSON schema in the prompt text for better LLM comprehension. "
+        "Requires either --json-schema-file or --json-schema-inline to be specified.",
     )
 
     json_group = benchmark_parser.add_mutually_exclusive_group()
     json_group.add_argument(
-        "--json-schema-file", 
-        type=str, 
-        help="Path to JSON schema file for structured output validation."
+        "--json-schema-file", type=str, help="Path to JSON schema file for structured output validation."
     )
     json_group.add_argument(
-        "--json-schema-inline", 
-        type=str, 
-        help="Inline JSON schema string for structured output validation."
+        "--json-schema-inline", type=str, help="Inline JSON schema string for structured output validation."
     )
 
     benchmark_parser.add_argument(
@@ -745,6 +748,34 @@ def run_main(args: argparse.Namespace) -> None:
         endpoint = args.endpoint.strip("/")
         args.api_url = f"{base_url}/{endpoint}"
 
+        # Process JSON prompt with @file support
+        custom_prompt = ""
+        if args.json_prompt:
+            if args.json_prompt.startswith("@"):
+                # File-based prompt loading
+                prompt_file_path = args.json_prompt[1:]  # Remove @ prefix
+                try:
+                    with open(prompt_file_path, 'r', encoding='utf-8') as f:
+                        custom_prompt = f.read().strip()
+                    if not custom_prompt:
+                        logger.error(f"Prompt file '{prompt_file_path}' is empty")
+                        sys.exit(1)
+                    logger.info(f"Loaded custom prompt from {prompt_file_path}")
+                except FileNotFoundError:
+                    logger.error(f"Prompt file '{prompt_file_path}' does not exist")
+                    sys.exit(1)
+                except UnicodeDecodeError as e:
+                    logger.error(f"Cannot read prompt file '{prompt_file_path}': {e}")
+                    sys.exit(1)
+                except Exception as e:
+                    logger.error(f"Failed to load prompt file '{prompt_file_path}': {e}")
+                    sys.exit(1)
+            else:
+                # Inline prompt
+                custom_prompt = args.json_prompt
+                if not custom_prompt:
+                    logger.warning("JSON prompt is empty")
+
         # Process JSON schema if provided
         json_schema = None
         if args.json_schema_file:
@@ -770,11 +801,43 @@ def run_main(args: argparse.Namespace) -> None:
             except Exception as e:
                 logger.error(f"Failed to parse inline JSON schema: {e}")
                 sys.exit(1)
-        
-        # Validate mutual exclusivity with json_response
+
+        # Comprehensive input validation
+        # 1. Check for contradictory flag combinations
         if json_schema and args.json_response:
             logger.error("Cannot use both --json-response and JSON schema options together")
-            sys.exit(1)
+            logger.error("Suggestion: Choose either --json-response or --json-schema-file/--json-schema-inline")
+            sys.exit(2)
+
+        if args.json_schema_file and args.json_schema_inline:
+            logger.error("Cannot use --json-schema-file and --json-schema-inline together")
+            logger.error("Suggestion: Choose either file-based or inline schema input")
+            sys.exit(2)
+
+        # 2. Check for schema-dependent flags without schema
+        if hasattr(args, 'include_schema_in_prompt') and args.include_schema_in_prompt:
+            if not json_schema:
+                logger.error("--include-schema-in-prompt requires a JSON schema")
+                logger.error("Suggestion: Add --json-schema-file <file> or --json-schema-inline <schema>")
+                sys.exit(3)
+
+        # 3. File size warnings (optional)
+        if args.json_schema_file:
+            try:
+                file_size = os.path.getsize(args.json_schema_file)
+                if file_size > 1024 * 1024:  # 1MB
+                    logger.warning(f"Large schema file ({file_size / (1024*1024):.1f}MB) may impact performance")
+            except OSError:
+                pass  # File size check is optional
+
+        if args.json_prompt and args.json_prompt.startswith("@"):
+            prompt_file_path = args.json_prompt[1:]
+            try:
+                file_size = os.path.getsize(prompt_file_path)
+                if file_size > 100 * 1024:  # 100KB
+                    logger.warning(f"Large prompt file ({file_size / 1024:.1f}KB) may impact performance")
+            except OSError:
+                pass  # File size check is optional
 
         client = Client(
             args.backend,
@@ -797,9 +860,10 @@ def run_main(args: argparse.Namespace) -> None:
             args.top_k,
             run_id=run_id,
             json_response=args.json_response,
-            json_response_prompt=args.json_response_prompt,
+            custom_prompt=custom_prompt,
             disable_thinking=args.disable_thinking,
             json_schema=json_schema,
+            include_schema_in_prompt=getattr(args, 'include_schema_in_prompt', False),
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose
