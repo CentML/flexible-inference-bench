@@ -59,7 +59,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--disable-tqdm` | Specify to disable tqdm progress bar. |
 | `--best-of` | Number of best completions to return. |
 | `--use-beam-search` | Use beam search for completions. |
-| `--json-response` | Request responses in JSON format from the API. |
+| `--json-response` | Request responses in JSON object format from the API. |
 | `--json-prompt` | Custom prompt to append for JSON modes. Supports inline text or file input with `@file` syntax (e.g., `--json-prompt @prompt.txt`). Always appended when specified. |
 | `--json-schema-file` | Path to JSON schema file for structured output validation. Uses OpenAI/vLLM structured outputs. |
 | `--json-schema-inline` | Inline JSON schema string for structured output validation. Alternative to `--json-schema-file`. |
@@ -78,105 +78,17 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--top-p` | Top-P to use for sampling. Defaults to None, or 1.0 for backends which require it to be specified. |
 | `--top-k` | Top-K to use for sampling. Defaults to None. |
 
-## JSON Schema Support
+### JSON Schema Support
 
-The benchmarker provides comprehensive support for structured JSON outputs using OpenAI/vLLM compatible JSON schema validation. This enables precise control over the response format and ensures consistent, structured data generation.
+For structured JSON outputs with schema validation:
 
-### JSON Schema Features
-
-#### Basic JSON Response
-For simple JSON formatting without schema validation:
 ```bash
-fib benchmark --json-response -n 10 -rps 5 --model gpt-3.5-turbo
+# File-based schema (see tests/data/simple_schema.json for example)
+fib benchmark --json-schema-file path/to/schema.json -n 20 -rps 10
+
+# Inline schema  
+fib benchmark --json-schema-inline '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10
 ```
-
-#### JSON Schema Validation
-For structured outputs with schema validation, use either file-based or inline schemas:
-
-**File-based schema:**
-```bash
-# Create a schema file
-cat > response_schema.json << EOF
-{
-  "type": "object",
-  "properties": {
-    "answer": {
-      "type": "string",
-      "description": "The main response"
-    },
-    "confidence": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    }
-  },
-  "required": ["answer"]
-}
-EOF
-
-# Use the schema file
-fib benchmark --json-schema-file response_schema.json -n 10 -rps 5 --model gpt-3.5-turbo
-```
-
-**Inline schema:**
-```bash
-fib benchmark --json-schema-inline '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 10 -rps 5
-```
-
-#### Custom Prompts
-Add custom instructions that are always appended to requests:
-
-**Inline prompt:**
-```bash
-fib benchmark --json-schema-file schema.json --json-prompt "Be concise and direct." -n 10 -rps 5
-```
-
-**File-based prompt:**
-```bash
-echo "Provide detailed analysis with specific examples." > custom_prompt.txt
-fib benchmark --json-schema-file schema.json --json-prompt @custom_prompt.txt -n 10 -rps 5
-```
-
-#### Schema in Prompt
-Include the actual JSON schema in the prompt for better LLM comprehension:
-```bash
-fib benchmark --json-schema-file complex_schema.json --include-schema-in-prompt -n 10 -rps 5
-```
-
-This will append the pretty-printed schema to the prompt like:
-```
-Please follow this JSON schema for your response:
-```json
-{
-  "type": "object",
-  "properties": {
-    "answer": {"type": "string"}
-  }
-}
-```
-```
-
-#### Combined Usage
-You can combine custom prompts with schema inclusion:
-```bash
-fib benchmark \
-  --json-schema-file schema.json \
-  --json-prompt "Analyze thoroughly:" \
-  --include-schema-in-prompt \
-  -n 20 -rps 10
-```
-
-### JSON Schema Validation
-The system includes comprehensive validation:
-- **Contradictory flags**: Prevents using `--json-response` with JSON schema options
-- **Missing dependencies**: Requires a schema when using `--include-schema-in-prompt`
-- **File validation**: Checks file existence, readability, and content validity
-- **Schema validation**: Ensures JSON schemas are valid objects
-
-### Compatibility
-- ✅ **OpenAI API**: Full support for `json_schema` response format
-- ✅ **vLLM**: Compatible with vLLM's structured output implementation
-- ✅ **Other backends**: Falls back to prompt-based JSON formatting
 
 In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
 
@@ -288,45 +200,3 @@ P99 ITL (ms):                            89.88
 ==================================================
 ```
 
-### JSON Schema Example
-
-For structured output benchmarking with JSON schema validation:
-
-```bash
-# Create a response schema
-cat > analysis_schema.json << 'EOF'
-{
-  "type": "object",
-  "properties": {
-    "summary": {
-      "type": "string",
-      "description": "Brief summary of the analysis"
-    },
-    "key_points": {
-      "type": "array",
-      "items": {"type": "string"},
-      "minItems": 1,
-      "maxItems": 5
-    },
-    "confidence": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    }
-  },
-  "required": ["summary", "key_points"]
-}
-EOF
-
-# Run benchmark with schema validation and custom prompt
-fib benchmark \
-  --json-schema-file analysis_schema.json \
-  --json-prompt "Provide thorough analysis with specific examples." \
-  --include-schema-in-prompt \
-  -n 50 -rps 20 \
-  --dataset-name sharegpt \
-  --output-token-distribution uniform 150 300 \
-  --output-file structured-benchmark.json
-```
-
-This will generate structured JSON responses that conform to the specified schema, with custom prompting and the schema included in each request for better LLM comprehension.
