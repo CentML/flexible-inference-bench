@@ -3,6 +3,7 @@
   "properties": {
     "answer": {
       "type": "string",
+      "minLength": 2000,
       "description": "The answer to the question"
     },
     "reasoning": {
