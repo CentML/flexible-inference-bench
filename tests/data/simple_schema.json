@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "answer": {
+      "type": "string",
+      "description": "The answer to the question"
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Explanation of the reasoning"
+    }
+  },
+  "required": ["answer"],
+  "additionalProperties": false
+}

@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "response": {
+      "type": "string",
+      "description": "The main response content"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score between 0 and 1"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["technical", "creative", "analytical", "general"],
+      "description": "Response category"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "word_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "language": {
+          "type": "string",
+          "default": "en"
+        }
+      },
+      "required": ["word_count"]
+    }
+  },
+  "required": ["response", "confidence", "category"],
+  "additionalProperties": false
+}

@@ -45,7 +45,9 @@ class Client:
         top_k: Optional[int] = None,
         run_id: Optional[str] = None,
         json_response: bool = False,
+        json_response_prompt: str = "",
         disable_thinking: bool = False,
+        json_schema: Optional[Dict[str, Any]] = None,
     ):
         self.backend = backend
         self.api_url = api_url
@@ -69,7 +71,9 @@ class Client:
         self.top_k = top_k
         self.run_id = run_id or str(uuid.uuid4())
         self.json_response = json_response
+        self.json_response_prompt = json_response_prompt
         self.disable_thinking = disable_thinking
+        self.json_schema = json_schema
 
     @property
     def request_func(
@@ -183,7 +187,9 @@ class Client:
                 top_k=self.top_k,
                 run_id=self.run_id,
                 json_response=self.json_response,
+                json_response_prompt=self.json_response_prompt,
                 disable_thinking=self.disable_thinking,
+                json_schema=self.json_schema,
             )
             for (data_sample, media_sample) in zip(data, requests_media)
         ]
@@ -227,6 +233,11 @@ class Client:
             temperature=self.temperature,
             top_p=self.top_p,
             top_k=self.top_k,
+            run_id=self.run_id,
+            json_response=self.json_response,
+            json_response_prompt=self.json_response_prompt,
+            disable_thinking=self.disable_thinking,
+            json_schema=self.json_schema,
         )
         return await self.send_request(-1, data, 0, None, None)
 
@@ -245,6 +256,14 @@ class Client:
             stream=self.stream,
             cookies=self.cookies,
             logprobs=self.logprobs,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            top_k=self.top_k,
+            run_id=self.run_id,
+            json_response=self.json_response,
+            json_response_prompt=self.json_response_prompt,
+            disable_thinking=self.disable_thinking,
+            json_schema=self.json_schema,
         )
         return await self.signal_profiler(0, data, 0, None, None)
 
@@ -263,5 +282,13 @@ class Client:
             stream=self.stream,
             cookies=self.cookies,
             logprobs=self.logprobs,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            top_k=self.top_k,
+            run_id=self.run_id,
+            json_response=self.json_response,
+            json_response_prompt=self.json_response_prompt,
+            disable_thinking=self.disable_thinking,
+            json_schema=self.json_schema,
         )
         return await self.signal_profiler(0, data, 0, None, None)

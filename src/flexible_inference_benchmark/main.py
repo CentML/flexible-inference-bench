@@ -475,6 +475,27 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     benchmark_parser.add_argument(
+        "--json-response-prompt", 
+        type=str, 
+        default="",
+        help="Custom prompt message to append when using --json-response or JSON schema. "
+             "For --json-response without this flag, a default JSON formatting prompt is used. "
+             "For JSON schema, this adds additional context to the structured output request."
+    )
+
+    json_group = benchmark_parser.add_mutually_exclusive_group()
+    json_group.add_argument(
+        "--json-schema-file", 
+        type=str, 
+        help="Path to JSON schema file for structured output validation."
+    )
+    json_group.add_argument(
+        "--json-schema-inline", 
+        type=str, 
+        help="Inline JSON schema string for structured output validation."
+    )
+
+    benchmark_parser.add_argument(
         "--disable-thinking", action="store_true", help="Disable thinking mode in chat templates."
     )
 
@@ -724,6 +745,37 @@ def run_main(args: argparse.Namespace) -> None:
         endpoint = args.endpoint.strip("/")
         args.api_url = f"{base_url}/{endpoint}"
 
+        # Process JSON schema if provided
+        json_schema = None
+        if args.json_schema_file:
+            try:
+                with open(args.json_schema_file, 'r') as f:
+                    json_schema = json.load(f)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info(f"Loaded JSON schema from {args.json_schema_file}")
+            except Exception as e:
+                logger.error(f"Failed to load JSON schema file: {e}")
+                sys.exit(1)
+        elif args.json_schema_inline:
+            try:
+                json_schema = json.loads(args.json_schema_inline)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info("Loaded inline JSON schema")
+            except Exception as e:
+                logger.error(f"Failed to parse inline JSON schema: {e}")
+                sys.exit(1)
+        
+        # Validate mutual exclusivity with json_response
+        if json_schema and args.json_response:
+            logger.error("Cannot use both --json-response and JSON schema options together")
+            sys.exit(1)
+
         client = Client(
             args.backend,
             args.api_url,
@@ -745,7 +797,9 @@ def run_main(args: argparse.Namespace) -> None:
             args.top_k,
             run_id=run_id,
             json_response=args.json_response,
+            json_response_prompt=args.json_response_prompt,
             disable_thinking=args.disable_thinking,
+            json_schema=json_schema,
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose

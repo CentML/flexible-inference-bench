@@ -44,7 +44,9 @@ class RequestFuncInput(BaseModel):
     top_k: Optional[int] = None
     run_id: Optional[str] = None
     json_response: bool = False
+    json_response_prompt: str = ""
     disable_thinking: bool = False
+    json_schema: Optional[Dict[str, Any]] = None
 
 
 class RequestFuncOutput(BaseModel):
@@ -452,18 +454,26 @@ async def async_request_openai_chat_completions(
             assert not request_func_input.use_beam_search
 
             # Apply JSON response formatting if flag is enabled
-            if request_func_input.json_response:
-                append_msg = (
-                    "\nPlease send your response as a JSON object. "
-                    "Follow this schema: {'assistant_response': 'your full, detailed response here "
-                    "Do not include any other text or formatting. "
-                    "Only return the JSON object without any additional text or explanation."
-                    "DO NOT OUTPUT THE } character."
-                )
-                if isinstance(content_body, str):
-                    content_body += append_msg
+            if request_func_input.json_response or request_func_input.json_schema:
+                if request_func_input.json_response_prompt:
+                    append_msg = request_func_input.json_response_prompt
+                elif request_func_input.json_response and not request_func_input.json_schema:
+                    # Default prompt for basic JSON response mode
+                    append_msg = (
+                        "\nPlease send your response as a JSON object. "
+                        "Follow this schema: {'assistant_response': 'your full, detailed response here "
+                        "Do not include any other text or formatting. "
+                        "Only return the JSON object without any additional text or explanation."
+                        "DO NOT OUTPUT THE } character."
+                    )
                 else:
-                    content_body[-1]["text"] += append_msg
+                    append_msg = None
+                
+                if append_msg:
+                    if isinstance(content_body, str):
+                        content_body += append_msg
+                    else:
+                        content_body[-1]["text"] += append_msg
 
             payload = {
                 "model": request_func_input.model,
@@ -474,7 +484,16 @@ async def async_request_openai_chat_completions(
             }
 
             # Add JSON response format if flag is enabled
-            if request_func_input.json_response:
+            if request_func_input.json_schema:
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "response",
+                        "schema": request_func_input.json_schema,
+                        "strict": True
+                    }
+                }
+            elif request_func_input.json_response:
                 payload["response_format"] = {"type": "json_object"}
 
             # Add thinking control if flag is enabled

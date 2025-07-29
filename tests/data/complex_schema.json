@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Brief summary of the content"
+    },
+    "key_points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "point": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        },
+        "required": ["point", "importance"]
+      },
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "negative", "neutral"]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "multipleOf": 0.1
+    }
+  },
+  "required": ["summary", "key_points", "sentiment"],
+  "additionalProperties": false
+}
