@@ -60,7 +60,7 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--best-of` | Number of best completions to return. |
 | `--use-beam-search` | Use beam search for completions. |
 | `--json-response` | Request responses in JSON object format from the API. |
-| `--json-prompt` | Custom prompt to append for JSON modes. Supports inline text or file input with `@file` syntax (e.g., `--json-prompt @prompt.txt`). Always appended when specified. |
+| `--json-prompt` | No additional context is included in the prompt. Use `--json-prompt` to add custom instructions (appended to end of original prompt) if desired when using one of the JSON modes. Supports inline text or file input with `@file` syntax (e.g., `--json-prompt @prompt.txt`). |
 | `--json-schema` | JSON schema for structured output validation. Supports inline JSON string or file input with `@file` syntax (e.g., `--json-schema @schema.json`). |
 | `--include-schema-in-prompt` | Include the JSON schema in the prompt text for better LLM comprehension. Requires `--json-schema` to be specified. |
 | `--disable-thinking` | Disable thinking mode in chat templates. |

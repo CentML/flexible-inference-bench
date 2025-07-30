@@ -457,20 +457,11 @@ async def async_request_openai_chat_completions(
             # Apply custom prompt and schema formatting
             append_msg = ""
 
-            # 1. Always append custom prompt when provided
+            # 1. Append custom prompt when provided
             if request_func_input.custom_prompt:
                 append_msg += request_func_input.custom_prompt
 
-            # 2. Add default JSON prompt for basic JSON response mode (no schema)
-            elif request_func_input.json_response and not request_func_input.json_schema:
-                append_msg += (
-                    "\nPlease send your response as a JSON object. "
-                    "Follow this schema: {'assistant_response': 'your full, detailed response here'} "
-                    "Do not include any other text or formatting. "
-                    "Only return the JSON object without any additional text or explanation."
-                )
-
-            # 3. Include schema in prompt if requested
+            # 2. Include schema in prompt if requested
             if request_func_input.include_schema_in_prompt and request_func_input.json_schema:
                 if append_msg:
                     append_msg += "\n\n"

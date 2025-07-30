@@ -576,11 +576,9 @@ def validate_json_args(args: argparse.Namespace) -> None:
         else:
             # Inline prompt
             custom_prompt = args.json_prompt
-            if not custom_prompt:
-                logger.warning("JSON prompt is empty")
 
     # Store processed prompt back to args
-    args.custom_prompt = custom_prompt
+    args.json_prompt = custom_prompt
 
     # Process JSON schema if provided
     json_schema = None
@@ -630,7 +628,7 @@ def validate_json_args(args: argparse.Namespace) -> None:
         sys.exit(2)
 
     # 2. Check for schema-dependent flags without schema
-    if hasattr(args, 'include_schema_in_prompt') and args.include_schema_in_prompt:
+    if args.include_schema_in_prompt:
         if not json_schema:
             logger.error("--include-schema-in-prompt requires a JSON schema")
             logger.error("Suggestion: Add --json-schema <schema> or --json-schema @file")
@@ -861,7 +859,7 @@ def run_main(args: argparse.Namespace) -> None:
         args.api_url = f"{base_url}/{endpoint}"
 
         # JSON processing and validation handled in parse_args()
-        custom_prompt = getattr(args, 'custom_prompt', '')
+        custom_prompt = args.json_prompt
         json_schema = getattr(args, 'json_schema', None)
 
         client = Client(
