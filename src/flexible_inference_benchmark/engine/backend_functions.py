@@ -43,6 +43,11 @@ class RequestFuncInput(BaseModel):
     top_p: Optional[float] = None
     top_k: Optional[int] = None
     run_id: Optional[str] = None
+    json_response: bool = False
+    custom_prompt: str = ""
+    disable_thinking: bool = False
+    json_schema: Optional[Dict[str, Any]] = None
+    include_schema_in_prompt: bool = False
 
 
 class RequestFuncOutput(BaseModel):
@@ -448,6 +453,29 @@ async def async_request_openai_chat_completions(
     with otel_span as span:
         async with aiohttp.ClientSession(timeout=AIOHTTP_TIMEOUT) as session:
             assert not request_func_input.use_beam_search
+
+            # Apply custom prompt and schema formatting
+            append_msg = ""
+
+            # 1. Append custom prompt when provided
+            if request_func_input.custom_prompt:
+                append_msg += request_func_input.custom_prompt
+
+            # 2. Include schema in prompt if requested
+            if request_func_input.include_schema_in_prompt and request_func_input.json_schema:
+                if append_msg:
+                    append_msg += "\n\n"
+                append_msg += "Please follow this JSON schema for your response:\n```json\n"
+                append_msg += json.dumps(request_func_input.json_schema, indent=2)
+                append_msg += "\n```"
+
+            # Apply the combined message to content
+            if append_msg:
+                if isinstance(content_body, str):
+                    content_body += append_msg
+                else:
+                    content_body[-1]["text"] += append_msg
+
             payload = {
                 "model": request_func_input.model,
                 "messages": [{"role": "user", "content": content_body}],
@@ -455,6 +483,20 @@ async def async_request_openai_chat_completions(
                 "stream": request_func_input.stream,
                 "ignore_eos": request_func_input.ignore_eos,
             }
+
+            # Add JSON response format if flag is enabled
+            if request_func_input.json_schema:
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": "response", "schema": request_func_input.json_schema, "strict": True},
+                }
+            elif request_func_input.json_response:
+                payload["response_format"] = {"type": "json_object"}
+
+            # Add thinking control if flag is enabled
+            if request_func_input.disable_thinking:
+                payload["chat_template_kwargs"] = {"enable_thinking": False}
+
             if request_func_input.stream:
                 payload["stream_options"] = {"include_usage": True}
             apply_sampling_params(payload, request_func_input, always_top_p=False)
@@ -505,7 +547,7 @@ async def async_request_openai_chat_completions(
                                         delta = None
                                         content = None
                                         reasoning_content = None
-                                        if request_func_input.stream and len(data["choices"]) > 0:
+                                        if request_func_input.stream and "choices" in data and len(data["choices"]) > 0:
                                             delta = data["choices"][0]["delta"]
                                             content = delta.get("content", None)
                                             reasoning_content = delta.get("reasoning_content", None)

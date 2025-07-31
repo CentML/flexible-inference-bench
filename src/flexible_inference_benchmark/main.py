@@ -471,6 +471,37 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     benchmark_parser.add_argument("--use-beam-search", action="store_true", help="Use beam search for completions.")
 
     benchmark_parser.add_argument(
+        "--json-response", action="store_true", help="Request responses in JSON format from the API."
+    )
+
+    benchmark_parser.add_argument(
+        "--json-prompt",
+        type=str,
+        default="",
+        help="Custom prompt message to append when using JSON modes. "
+        "Supports inline text or file input with @file syntax (e.g., --json-prompt @prompt.txt). "
+        "Always appended when specified, regardless of JSON mode type.",
+    )
+
+    benchmark_parser.add_argument(
+        "--json-schema",
+        type=str,
+        help="JSON schema for structured output validation. "
+        "Supports inline JSON string or file input with @file syntax (e.g., --json-schema @schema.json).",
+    )
+
+    benchmark_parser.add_argument(
+        "--include-schema-in-prompt",
+        action="store_true",
+        help="Include the JSON schema in the prompt text for better LLM comprehension. "
+        "Requires --json-schema to be specified.",
+    )
+
+    benchmark_parser.add_argument(
+        "--disable-thinking", action="store_true", help="Disable thinking mode in chat templates."
+    )
+
+    benchmark_parser.add_argument(
         "--output-file",
         type=str,
         default='output-file.json',
@@ -513,6 +544,114 @@ def add_benchmark_subparser(subparsers: argparse._SubParsersAction) -> Any:  # t
     )
 
     return benchmark_parser
+
+
+def validate_json_args(args: argparse.Namespace) -> None:
+    """Validate JSON-related arguments and load files."""
+    if args.subcommand != 'benchmark':
+        return
+
+    # Process JSON prompt with @file support
+    custom_prompt = ""
+    if args.json_prompt:
+        if args.json_prompt.startswith("@"):
+            # File-based prompt loading
+            prompt_file_path = args.json_prompt[1:]  # Remove @ prefix
+            try:
+                with open(prompt_file_path, 'r', encoding='utf-8') as f:
+                    custom_prompt = f.read().strip()
+                if not custom_prompt:
+                    logger.error(f"Prompt file '{prompt_file_path}' is empty")
+                    sys.exit(1)
+                logger.info(f"Loaded custom prompt from {prompt_file_path}")
+            except FileNotFoundError:
+                logger.error(f"Prompt file '{prompt_file_path}' does not exist")
+                sys.exit(1)
+            except UnicodeDecodeError as e:
+                logger.error(f"Cannot read prompt file '{prompt_file_path}': {e}")
+                sys.exit(1)
+            except (OSError, PermissionError) as e:
+                logger.error(f"Failed to load prompt file '{prompt_file_path}': {e}")
+                sys.exit(1)
+        else:
+            # Inline prompt
+            custom_prompt = args.json_prompt
+
+    # Store processed prompt back to args
+    args.json_prompt = custom_prompt
+
+    # Process JSON schema if provided
+    json_schema = None
+    original_json_schema = getattr(args, 'json_schema', None)
+    if args.json_schema:
+        if args.json_schema.startswith("@"):
+            # File-based schema loading
+            schema_file_path = args.json_schema[1:]  # Remove @ prefix
+            try:
+                with open(schema_file_path, 'r') as f:
+                    json_schema = json.load(f)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info(f"Loaded JSON schema from {schema_file_path}")
+            except FileNotFoundError:
+                logger.error(f"JSON schema file '{schema_file_path}' does not exist")
+                sys.exit(1)
+            except (OSError, PermissionError) as e:
+                logger.error(f"Failed to load JSON schema file '{schema_file_path}': {e}")
+                sys.exit(1)
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in schema file '{schema_file_path}': {e}")
+                sys.exit(1)
+        else:
+            # Inline schema
+            try:
+                json_schema = json.loads(args.json_schema)
+                # Basic validation that it's a valid JSON schema structure
+                if not isinstance(json_schema, dict):
+                    logger.error("JSON schema must be a JSON object")
+                    sys.exit(1)
+                logger.info("Loaded inline JSON schema")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in inline schema: {e}")
+                sys.exit(1)
+
+    # Store processed schema back to args
+    args.json_schema = json_schema
+
+    # Comprehensive input validation
+    # 1. Check for contradictory flag combinations
+    if json_schema and args.json_response:
+        logger.error("Cannot use both --json-response and --json-schema together")
+        logger.error("Suggestion: Choose either --json-response or --json-schema")
+        sys.exit(2)
+
+    # 2. Check for schema-dependent flags without schema
+    if args.include_schema_in_prompt:
+        if not json_schema:
+            logger.error("--include-schema-in-prompt requires a JSON schema")
+            logger.error("Suggestion: Add --json-schema <schema> or --json-schema @file")
+            sys.exit(3)
+
+    # 3. File size warnings (optional)
+    if original_json_schema and original_json_schema.startswith("@"):
+        schema_file_path = original_json_schema[1:]
+        try:
+            file_size = os.path.getsize(schema_file_path)
+            if file_size > 1024 * 1024:  # 1MB
+                logger.warning(f"Large schema file ({file_size / (1024*1024):.1f}MB) may impact performance")
+        except OSError:
+            pass  # File size check is optional
+
+    if args.json_prompt and args.json_prompt.startswith("@"):
+        prompt_file_path = args.json_prompt[1:]
+        try:
+            file_size = os.path.getsize(prompt_file_path)
+            if file_size > 100 * 1024:  # 100KB
+                logger.warning(f"Large prompt file ({file_size / 1024:.1f}KB) may impact performance")
+        except OSError:
+            pass  # File size check is optional
 
 
 def parse_args() -> argparse.Namespace:
@@ -630,6 +769,9 @@ def parse_args() -> argparse.Namespace:
         if args.num_trials > MAX_TRIALS:
             logger.warning(f"High num_trials value ({args.num_trials}) may slow down prompt generation")
 
+    # Validate JSON-related arguments
+    validate_json_args(args)
+
     return args
 
 
@@ -716,6 +858,10 @@ def run_main(args: argparse.Namespace) -> None:
         endpoint = args.endpoint.strip("/")
         args.api_url = f"{base_url}/{endpoint}"
 
+        # JSON processing and validation handled in parse_args()
+        custom_prompt = args.json_prompt
+        json_schema = getattr(args, 'json_schema', None)
+
         client = Client(
             args.backend,
             args.api_url,
@@ -736,6 +882,11 @@ def run_main(args: argparse.Namespace) -> None:
             args.top_p,
             args.top_k,
             run_id=run_id,
+            json_response=args.json_response,
+            custom_prompt=custom_prompt,
+            disable_thinking=args.disable_thinking,
+            json_schema=json_schema,
+            include_schema_in_prompt=getattr(args, 'include_schema_in_prompt', False),
         )
         # disable verbose output for validation of the endpoint. This is done to avoid confusion on terminal output.
         client_verbose_value = client.verbose

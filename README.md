@@ -59,6 +59,11 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--disable-tqdm` | Specify to disable tqdm progress bar. |
 | `--best-of` | Number of best completions to return. |
 | `--use-beam-search` | Use beam search for completions. |
+| `--json-response` | Request responses in JSON object format from the API. |
+| `--json-prompt` | No additional context is included in the prompt. Use `--json-prompt` to add custom instructions (appended to end of original prompt) if desired when using one of the JSON modes. Supports inline text or file input with `@file` syntax (e.g., `--json-prompt @prompt.txt`). |
+| `--json-schema` | JSON schema for structured output validation. Supports inline JSON string or file input with `@file` syntax (e.g., `--json-schema @schema.json`). |
+| `--include-schema-in-prompt` | Include the JSON schema in the prompt text for better LLM comprehension. Requires `--json-schema` to be specified. |
+| `--disable-thinking` | Disable thinking mode in chat templates. |
 | `--output-file` | Output json file to save the results. |
 | `--debug` | Log debug messages. |
 | `--profile` | Use Torch Profiler. The endpoint must be launched with VLLM_TORCH_PROFILER_DIR to enable profiler. |
@@ -71,6 +76,18 @@ After benchmarking, the results are saved to `output-file.json` (or specified by
 | `--temperature` (`--temp`) | Temperature to use for sampling. Defaults to 0.0. |
 | `--top-p` | Top-P to use for sampling. Defaults to None, or 1.0 for backends which require it to be specified. |
 | `--top-k` | Top-K to use for sampling. Defaults to None. |
+
+### JSON Schema Support
+
+For structured JSON outputs with schema validation:
+
+```bash
+# File-based schema (see tests/data/simple_schema.json for example)
+fib benchmark --json-schema @tests/data/simple_schema.json -n 20 -rps 10 --backend openai-chat --endpoint /v1/chat/completions
+
+# Inline schema  
+fib benchmark --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10 --backend openai-chat --endpoint /v1/chat/completions
+```
 
 In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
 
@@ -181,3 +198,4 @@ Median ITL (ms):                         8.00
 P99 ITL (ms):                            89.88    
 ==================================================
 ```
+
