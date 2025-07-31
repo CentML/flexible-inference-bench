@@ -86,7 +86,7 @@ For structured JSON outputs with schema validation:
 fib benchmark --json-schema @tests/data/simple_schema.json -n 20 -rps 10 --backend openai-chat --endpoint /v1/chat/completions
 
 # Inline schema  
-fib benchmark --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10
+fib benchmark --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10 --backend openai-chat --endpoint /v1/chat/completions
 ```
 
 In addition to providing these arguments on the command-line, you can use `--config-file` to pre-define the parameters for your use case. Examples are provided in `examples/`
