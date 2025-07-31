@@ -83,7 +83,7 @@ For structured JSON outputs with schema validation:
 
 ```bash
 # File-based schema (see tests/data/simple_schema.json for example)
-fib benchmark --json-schema @tests/data/simple_schema.json -n 20 -rps 10
+fib benchmark --json-schema @tests/data/simple_schema.json -n 20 -rps 10 --backend openai-chat --endpoint /v1/chat/completions
 
 # Inline schema  
 fib benchmark --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' -n 20 -rps 10
