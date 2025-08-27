@@ -927,9 +927,14 @@ def run_main(args: argparse.Namespace) -> None:
             output_list: List[Any] = send_requests(client, requests_prompts, requests_times, arr_dims)
             benchmark_time = time.perf_counter() - t
             # pylint: disable=line-too-long
+            
+            text_summaries: list[str] = []
+            if any(hasattr(o, "generated_text") for o in output_list):
+                text_summaries = [o.generated_text for o in output_list if hasattr(o, "generated_text")] # type: ignore
             output = {
                 "backend": args.backend,
                 "time": benchmark_time,
+                "summary": text_summaries,
                 "outputs": [request_func_output.model_dump() for request_func_output in output_list],  # type: ignore
                 "inputs": requests_prompts,
                 "tokenizer": args.tokenizer if args.tokenizer else args.model,

@@ -308,7 +308,7 @@ class ShareGPT(Data):
         filtered_dataset = [
             (prompt_str, prompt_len, output_len)
             for prompt_str, prompt_len, output_len in tokenized_dataset
-            if (prompt_len > 4 and output_len > 4)
+            if (prompt_len > 4 and output_len > 0)
         ]
 
         self.data = filtered_dataset
